@@ -2,18 +2,18 @@
 
 > Production A/B testing and experimentation platform for Heroku apps
 
-Heroku XP is a CLI plugin that enables **controlled production experimentation** by creating temporary experiment apps that receive a portion of your production traffic through advanced routing rules.
+Heroku XP is a CLI plugin that enables **controlled experimentation** by creating temporary experiment apps that receive a portion of your real traffic through advanced routing rules.
 
 [![npm version](https://badge.fury.io/js/%40heroku-cli%2Fplugin-experiments.svg)](https://www.npmjs.com/package/@heroku-cli/plugin-experiments)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-**Test features with real production traffic before full rollout.** Unlike review apps (which are for pre-production testing), experiments enable you to:
+**Test features with real traffic before full rollout.** Unlike review apps (which are isolated sandboxes), experiments enable you to:
 
 - **Route a percentage of production traffic** to experimental builds (e.g., 10% of users see the new feature)
 - **Target specific user segments** using paths, query parameters, headers, or JSON body matching
-- **Mirror traffic** to both apps for zero-impact performance testing
+- **Mirror traffic** to both versions for zero-impact
 - **Auto-expire experiments** with configurable time-to-live (TTL)
 - **Monitor real-time metrics** comparing experiment vs. production performance
 
@@ -21,14 +21,10 @@ Heroku XP is a CLI plugin that enables **controlled production experimentation**
 
 ```bash
 # Install the CLI plugin
-heroku plugins:install @heroku-cli/plugin-experiments
+heroku plugins:install @heroku-cli/xp
 
-# Add the proxy buildpack (required for traffic routing)
-heroku buildpacks:add https://github.com/heroku/heroku-buildpack-dyno-proxy --app YOUR-APP
-
-# Update your Procfile to wrap your start command
-# Before: web: npm start
-# After:  web: traefik-wrapper npm start
+# Add the buildpack (required for traffic routing)
+heroku buildpacks:add https://github.com/heroku/xp --app YOUR-APP
 
 # Deploy to activate
 git commit -am "Add Heroku XP support"
@@ -45,52 +41,54 @@ See [QUICKSTART.md](QUICKSTART.md) for a detailed 5-minute setup guide.
 # Route 10% of traffic to a new feature branch
 heroku xp:create \
   --app prod-app \
-  --name exp-new-ui \
-  --tarball https://github.com/myorg/myrepo/tarball/new-ui-branch \
+  --branch new-ui \
   --weight 10
+```
 
-# Deploy parent app to activate routing
-git commit --allow-empty -m "Activate experiment"
-git push heroku main
+```bash
+# Test experiment response
+curl prod-app.herokuapp.com/?x-heroku-xp=new-ui
 ```
 
 ### Monitor Performance
 
 ```bash
 # View real-time traffic comparison
-heroku xp:info --app prod-app --name exp-new-ui
+heroku xp:watch --app prod-app
+```
 
-# List all experiments
-heroku xp:list --app prod-app
+### Update Routing Rule
+
+```bash
+# Raise to 50% of traffic
+heroku xp:update -app prod-app --branch new-ui \
+  --weight 50
 ```
 
 ### Advanced Routing
 
 ```bash
 # Route specific paths to experiment
-heroku xp:create --app prod-app --name exp-api-v2 \
-  --tarball https://github.com/myorg/myrepo/tarball/api-v2 \
+heroku xp:create --app prod-app --branch api-v2 \
   --path /api/v2
 
 # Route beta users via JSON body content
-heroku xp:create --app prod-app --name exp-beta \
-  --copy-parent \
-  --body-json '$.user.beta == true'
+heroku xp:create --app prod-app --branch beta-user \
+  --body-json '$.user.id == 123'
 
-# Mirror all traffic for load testing
-heroku xp:create --app prod-app --name exp-perf-test \
-  --copy-parent \
-  --mirror-traffic
+# Mirror all traffic to git tag to load test for 5 min
+heroku xp:create --app prod-app --ref v1.1 \
+  --path \ --mirror --ttl 5min
 ```
 
 ### Clean Up
 
 ```bash
-# Stop routing traffic (keeps app running)
-heroku xp:stop --app prod-app --name exp-new-ui
+# Stop routing traffic
+heroku xp:stop --app prod-app --branch new-ui
 
 # Destroy experiment completely
-heroku xp:destroy --app prod-app --name exp-new-ui --confirm exp-new-ui
+heroku xp:destroy --app prod-app --branch exp-new-ui --confirm prod-app
 ```
 
 ## Documentation
@@ -103,7 +101,7 @@ heroku xp:destroy --app prod-app --name exp-new-ui --confirm exp-new-ui
 
 ## Architecture
 
-Heroku XP uses a **reverse proxy architecture** with Traefik running on your production dyno:
+Heroku XP uses a **reverse proxy architecture** with Traefik running on your web dyno:
 
 ```
 ┌─────────────┐
@@ -112,7 +110,7 @@ Heroku XP uses a **reverse proxy architecture** with Traefik running on your pro
        │
        ▼
 ┌───────────────────────────────────┐
-│  Parent App Dyno (Production)     │
+│  Parent App Dyno     │
 │  ┌─────────────────────────────┐  │
 │  │  Traefik Proxy ($PORT)      │  │
 │  │  • Weight: 10%              │  │
@@ -141,8 +139,8 @@ Heroku XP uses a **reverse proxy architecture** with Traefik running on your pro
 ### How It Works
 
 1. **Plugin configures routing**: `heroku xp:create` updates `HEROKU_EXPERIMENTS` config var on parent app
-2. **Buildpack installs Traefik**: On deploy, the dyno-proxy buildpack generates Traefik routing rules from `HEROKU_EXPERIMENTS`
-3. **Traefik routes traffic**: All production traffic flows through Traefik on `$PORT`, which routes based on configured rules
+2. **Buildpack installs Traefik**: On deploy, the buildpack generates Traefik routing rules from `HEROKU_EXPERIMENTS`
+3. **Traefik routes traffic**: All traffic flows through Traefik on `$PORT`, which routes based on configured rules
 4. **Experiment app runs independently**: Separate Heroku app with its own dynos, config, and slug
 5. **Real-time metrics**: Traefik logs traffic stats for parent vs. experiment comparison
 
