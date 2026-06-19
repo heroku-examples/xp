@@ -1,6 +1,6 @@
-# Contributing to Heroku Previews Plugin
+# Contributing to Heroku XP Plugin
 
-Thank you for your interest in contributing to the Heroku Previews Plugin! This document provides guidelines for setting up your development environment, running tests, and submitting contributions.
+Thank you for your interest in contributing to the Heroku XP Plugin! This document provides guidelines for setting up your development environment, running tests, and submitting contributions.
 
 ## Table of Contents
 
@@ -26,8 +26,8 @@ Thank you for your interest in contributing to the Heroku Previews Plugin! This 
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/heroku/heroku-cli-plugin-previews.git
-cd heroku-cli-plugin-previews
+git clone https://github.com/heroku/xp.git
+cd xp
 ```
 
 2. **Install dependencies**
@@ -55,8 +55,6 @@ This allows you to test your local changes with the `heroku` command.
 5. **Verify installation**
 
 ```bash
-heroku previews --help
-heroku experiments --help
 heroku xp --help
 ```
 
@@ -128,9 +126,7 @@ yarn lint --fix
 ```
 src/
 ├── commands/          # CLI command implementations
-│   ├── experiments/   # experiments:* commands
-│   ├── previews/      # previews:* commands
-│   └── xp/            # xp:* commands (aliases)
+│   └── xp/            # xp:* commands
 ├── lib/               # Shared utilities
 └── types/             # TypeScript type definitions
 ```
@@ -205,7 +201,7 @@ git push heroku main
 
 ```bash
 # Add your local buildpack for testing
-heroku buildpacks:add file:///path/to/heroku-previews-plugin/buildpack --app my-test-app
+heroku buildpacks:add file:///path/to/xp/buildpack --app my-test-app
 git commit --allow-empty -m "Add buildpack"
 git push heroku main
 ```
@@ -213,27 +209,27 @@ git push heroku main
 4. **Test CLI commands**
 
 ```bash
-# Create a preview
-heroku previews:create --app my-test-app --branch test-branch --weight 10 --mirror
+# Create an experiment
+heroku xp:create --app my-test-app --name test-exp --weight 10 --mirror
 
-# List previews
-heroku previews:list --app my-test-app
+# List experiments
+heroku xp:list --app my-test-app
 
 # Get info
-heroku previews:info --app my-test-app --branch test-branch
+heroku xp:info --app my-test-app --name test-exp
 
-# Update preview
-heroku previews:update --app my-test-app --branch test-branch --weight 20
+# Update experiment
+heroku xp:update --app my-test-app --name test-exp --weight 20
 
-# Destroy preview
-heroku previews:destroy --app my-test-app --branch test-branch
+# Destroy experiment
+heroku xp:destroy --app my-test-app --name test-exp
 ```
 
 5. **Verify configuration**
 
 ```bash
-# Check HEROKU_PREVIEWS config var
-heroku config:get HEROKU_PREVIEWS --app my-test-app | jq .
+# Check HEROKU_EXPERIMENTS config var
+heroku config:get HEROKU_EXPERIMENTS --app my-test-app | jq .
 
 # Check Traefik configuration
 heroku run 'cat .heroku/traefik/config/dynamic/*.yml' --app my-test-app
@@ -244,7 +240,7 @@ heroku run 'cat .heroku/traefik/config/dynamic/*.yml' --app my-test-app
 1. **Set up routing rules**
 
 ```bash
-heroku previews:create --app my-test-app --branch test \
+heroku xp:create --app my-test-app --name test \
   --weight 10 \
   --path /test \
   --query branch=test \
@@ -286,7 +282,7 @@ cd buildpack/
 # Test locally with a sample app
 cd /path/to/test-app
 heroku buildpacks:clear --app my-test-app
-heroku buildpacks:add file:///path/to/heroku-previews-plugin/buildpack --app my-test-app
+heroku buildpacks:add file:///path/to/xp/buildpack --app my-test-app
 git push heroku main
 
 # Check logs for buildpack output
@@ -479,23 +475,23 @@ Always test security implications:
 
 ```bash
 # Test command injection resistance
-heroku previews:create --app test --branch "'; rm -rf /" --weight 10
+heroku xp:create --app test --name "'; rm -rf /" --weight 10
 
 # Test path traversal
-heroku previews:create --app test --branch test --path "../etc/passwd"
+heroku xp:create --app test --name test --path "../etc/passwd"
 
 # Test CRLF injection
-heroku previews:create --app test --branch test --header "x-test: value\r\nInjected: true"
+heroku xp:create --app test --name test --header "x-test: value\r\nInjected: true"
 
 # Test prototype pollution
-heroku config:set HEROKU_PREVIEWS='{"__proto__": {"polluted": true}}' --app test
+heroku config:set HEROKU_EXPERIMENTS='{"__proto__": {"polluted": true}}' --app test
 ```
 
 All of these should be rejected with appropriate error messages.
 
 ## Questions?
 
-- **Documentation**: See [README.md](/Users/cambrose/Documents/heroku-previews-plugin/README.md), [QUICKSTART.md](/Users/cambrose/Documents/heroku-previews-plugin/QUICKSTART.md), [FEATURES.md](/Users/cambrose/Documents/heroku-previews-plugin/FEATURES.md)
+- **Documentation**: See [README.md](/Users/cambrose/Documents/xp/README.md), [QUICKSTART.md](/Users/cambrose/Documents/xp/QUICKSTART.md), [FEATURES.md](/Users/cambrose/Documents/xp/FEATURES.md)
 - **Issues**: Open an issue on GitHub
 - **Security**: Email security@heroku.com
 - **General questions**: Open a discussion on GitHub

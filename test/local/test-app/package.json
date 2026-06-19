@@ -1,0 +1,28 @@
+{
+  "name": "xp-test-app",
+  "version": "1.0.0",
+  "description": "Test Express.js app for Heroku XP plugin local testing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "heroku",
+    "xp",
+    "testing",
+    "express"
+  ],
+  "author": "Heroku",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

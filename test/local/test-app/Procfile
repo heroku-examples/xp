@@ -1,0 +1,1 @@
+web: traefik-wrapper node server.js

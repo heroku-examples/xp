@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # Parent app (production) with Traefik proxy
+  parent-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xp-parent-app
+    ports:
+      - "8080:8080"   # Main entry point (Traefik)
+      - "8081:8081"   # Traefik dashboard
+    environment:
+      - PORT=8080
+      - NODE_ENV=production
+      - APP_NAME=parent-app
+      - APP_VERSION=production
+      - HEROKU_APP_NAME=parent-app
+      # Example: 10% weight-based routing to experiment
+      - HEROKU_EXPERIMENTS=${HEROKU_EXPERIMENTS:-}
+    volumes:
+      - ./test-app:/app
+      - ./test-app/node_modules:/app/node_modules
+    networks:
+      - xp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Experiment app 1 (separate dyno)
+  experiment-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xp-experiment-1
+    ports:
+      - "9001:5000"   # Expose on different port for direct testing
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - APP_NAME=experiment-1
+      - APP_VERSION=experiment-v1
+      - HEROKU_APP_NAME=parent-app-exp-1-abc123
+      - HEROKU_EXPERIMENT_NAME=exp-1
+      - HEROKU_EXPERIMENT_PARENT=parent-app
+      - HEROKU_EXPERIMENT_CREATED=2026-06-19T10:00:00Z
+      # No HEROKU_EXPERIMENTS - this is a plain app
+    command: ["node", "server.js"]  # No traefik-wrapper
+    networks:
+      - xp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Experiment app 2 (for multi-experiment testing)
+  experiment-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xp-experiment-2
+    ports:
+      - "9002:5000"   # Expose on different port for direct testing
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - APP_NAME=experiment-2
+      - APP_VERSION=experiment-v2
+      - HEROKU_APP_NAME=parent-app-exp-2-def456
+      - HEROKU_EXPERIMENT_NAME=exp-2
+      - HEROKU_EXPERIMENT_PARENT=parent-app
+      - HEROKU_EXPERIMENT_CREATED=2026-06-19T11:00:00Z
+    command: ["node", "server.js"]  # No traefik-wrapper
+    networks:
+      - xp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  xp-network:
+    driver: bridge
+
+# Usage examples:
+#
+# 1. Start all services:
+#    docker-compose up
+#
+# 2. Test weight-based routing (10% to experiment-1):
+#    export HEROKU_EXPERIMENTS='{"version":1,"experiments":{"exp-1":{"name":"exp-1","appName":"xp-experiment-1","status":"active","routing":{"weight":10}}}}'
+#    docker-compose up parent-app experiment-1
+#
+# 3. Test path-based routing:
+#    export HEROKU_EXPERIMENTS='{"version":1,"experiments":{"exp-1":{"name":"exp-1","appName":"xp-experiment-1","status":"active","routing":{"paths":["/experiment"]}}}}'
+#    docker-compose up parent-app experiment-1
+#
+# 4. Access services:
+#    Parent app (via Traefik): http://localhost:8080
+#    Traefik dashboard: http://localhost:8081
+#    Experiment 1 (direct): http://localhost:9001
+#    Experiment 2 (direct): http://localhost:9002
+#
+# 5. Test routing:
+#    curl http://localhost:8080/                    # Parent app
+#    curl http://localhost:8080/experiment          # Experiment (if path routing)
+#    curl http://localhost:8080/?exp=1              # Experiment (if query routing)
+#    curl -H "x-experiment: exp-1" http://localhost:8080/  # Experiment (if header routing)

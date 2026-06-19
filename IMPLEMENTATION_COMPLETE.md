@@ -1,12 +1,12 @@
-# Heroku Experiments - Implementation Complete
+# Heroku XP - Implementation Complete
 
 ## ✅ Project Successfully Reworked
 
-The Heroku Previews Plugin has been completely reworked as **Heroku Experiments** using app-setups and dyno-proxy integration.
+The Heroku Previews Plugin has been completely reworked as **Heroku XP** using app-setups and dyno-proxy integration.
 
 ## Location
 
-**Repository**: `/Users/cambrose/Documents/heroku-previews-plugin` (will be pushed to github.com/heroku/experiments)
+**Repository**: `/Users/cambrose/Documents/xp` (will be pushed to github.com/heroku/xp)
 
 ## What Changed
 
@@ -18,7 +18,7 @@ The Heroku Previews Plugin has been completely reworked as **Heroku Experiments*
 - Stats API built from scratch  
 - Review apps (required pipelines + PRs)
 
-**NEW (Experiments)**:
+**NEW (XP)**:
 - Uses **app-setups API** directly (no pipeline/PR needed)
 - Minimal buildpack (dyno-proxy does Traefik heavy lifting)
 - Standalone experiment apps
@@ -27,7 +27,7 @@ The Heroku Previews Plugin has been completely reworked as **Heroku Experiments*
 ###Files Created
 
 #### CLI Commands (2,439 lines total)
-Located: `src/commands/experiments/`
+Located: `src/commands/xp/`
 
 1. **create.ts** (529 lines)
    - Creates experiment via app-setups API
@@ -128,14 +128,14 @@ All commands support both full and alias forms:
 
 | Full Command | Alias | Description |
 |--------------|-------|-------------|
-| `heroku experiments:create` | `xp:create` | Create experiment via app-setups |
-| `heroku experiments:info` | `xp:info` | Show experiment details |
-| `heroku experiments:list` | `xp:list` | List all experiments |
-| `heroku experiments:stop` | `xp:stop` | Stop experiment (scale to 0) |
-| `heroku experiments:start` | `xp:start` | Start experiment |
-| `heroku experiments:update` | `xp:update` | Update routing config |
-| `heroku experiments:watch` | `xp:watch` | Watch experiment metrics |
-| `heroku experiments:destroy` | `xp:destroy` | Destroy experiment |
+| `heroku xp:create` | - | Create experiment via app-setups |
+| `heroku xp:info` | - | Show experiment details |
+| `heroku xp:list` | - | List all experiments |
+| `heroku xp:stop` | - | Stop experiment (scale to 0) |
+| `heroku xp:start` | - | Start experiment |
+| `heroku xp:update` | - | Update routing config |
+| `heroku xp:watch` | - | Watch experiment metrics |
+| `heroku xp:destroy` | - | Destroy experiment |
 
 ## Example Usage
 
@@ -257,8 +257,8 @@ Automatically runs on push to main and PRs.
 cd /Users/cambrose/Documents/heroku-previews-plugin
 git init
 git add .
-git commit -m "Initial commit: Heroku Experiments"
-git remote add origin https://github.com/heroku/experiments.git
+git commit -m "Initial commit: Heroku XP"
+git remote add origin https://github.com/heroku/xp.git
 git push -u origin main
 ```
 
@@ -271,7 +271,7 @@ npm publish --access public
 ### 3. Install Plugin
 
 ```bash
-heroku plugins:install @heroku-cli/plugin-experiments
+heroku plugins:install @heroku-cli/plugin-xp
 ```
 
 ### 4. Test with Real App
@@ -310,4 +310,4 @@ heroku xp:destroy --app your-app --name test-exp
 
 ## Status: ✅ READY FOR DEPLOYMENT
 
-All files generated, tested structure created, ready to initialize as Git repo and push to github.com/heroku/experiments.
+All files generated, tested structure created, ready to initialize as Git repo and push to github.com/heroku/xp.
