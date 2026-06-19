@@ -14,6 +14,7 @@ Heroku XP is a CLI plugin that enables **controlled experimentation** by creatin
 - **Route a percentage of production traffic** to experimental builds (e.g., 10% of users see the new feature)
 - **Target specific user segments** using paths, query parameters, headers, or JSON body matching
 - **Mirror traffic** to both versions for zero-impact
+- **Share Config Vars and environment** inherit app configuration automatically
 - **Auto-expire experiments** with configurable time-to-live (TTL)
 - **Monitor real-time metrics** comparing experiment vs. production performance
 
