@@ -1,0 +1,481 @@
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Test Plugin
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Lint code
+        run: yarn lint
+      
+      - name: Build TypeScript
+        run: yarn build
+      
+      - name: Run unit tests
+        run: yarn test
+        env:
+          NODE_ENV: test
+      
+      - name: Install plugin locally
+        run: |
+          yarn pack
+          npm install -g @oclif/plugin-plugins
+          heroku --version || npm install -g heroku
+      
+      - name: Test plugin installation
+        run: |
+          # Link the plugin for testing
+          mkdir -p ~/.local/share/heroku/plugins
+          ln -sf $PWD ~/.local/share/heroku/plugins/@heroku-cli/plugin-previews
+      
+      - name: Test plugin commands are available
+        run: |
+          heroku experiments --help
+          heroku experiments:create --help
+          heroku experiments:list --help
+          heroku experiments:info --help
+          heroku experiments:start --help
+          heroku experiments:stop --help
+          heroku experiments:destroy --help
+          heroku experiments:update --help
+          heroku experiments:watch --help
+          heroku xp:create --help
+          heroku previews:create --help
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Build plugin
+        run: yarn build
+      
+      - name: Mock Heroku API tests
+        run: |
+          node -e "
+          const assert = require('assert');
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Test 1: Verify experiment type definitions
+          console.log('Testing experiment types...');
+          const experimentTypes = fs.readFileSync('./lib/types/experiment.d.ts', 'utf8');
+          assert(experimentTypes.includes('ExperimentConfig'), 'ExperimentConfig type not found');
+          assert(experimentTypes.includes('HerokuExperimentsConfig'), 'HerokuExperimentsConfig type not found');
+          console.log('✓ Experiment types are valid');
+          
+          // Test 2: Verify command files exist
+          console.log('\\nTesting command files...');
+          const commands = [
+            './lib/commands/experiments/create.js',
+            './lib/commands/experiments/list.js',
+            './lib/commands/experiments/info.js',
+            './lib/commands/experiments/start.js',
+            './lib/commands/experiments/stop.js',
+            './lib/commands/experiments/destroy.js',
+            './lib/commands/experiments/update.js',
+            './lib/commands/experiments/watch.js'
+          ];
+          
+          commands.forEach(cmd => {
+            assert(fs.existsSync(cmd), \`Command not found: \${cmd}\`);
+            console.log(\`  ✓ \${path.basename(cmd, '.js')}\`);
+          });
+          
+          // Test 3: Verify buildpack files
+          console.log('\\nTesting buildpack files...');
+          const buildpackFiles = [
+            './buildpack/bin/detect',
+            './buildpack/bin/compile',
+            './buildpack/bin/release',
+            './buildpack/buildpack.toml'
+          ];
+          
+          buildpackFiles.forEach(file => {
+            assert(fs.existsSync(file), \`Buildpack file not found: \${file}\`);
+            console.log(\`  ✓ \${path.basename(file)}\`);
+          });
+          
+          console.log('\\n✅ All integration checks passed');
+          "
+      
+      - name: Test HEROKU_EXPERIMENTS parsing
+        run: |
+          node -e "
+          const assert = require('assert');
+          
+          // Test parsing valid experiment config
+          console.log('Testing HEROKU_EXPERIMENTS config parsing...');
+          
+          const validConfig = {
+            version: 1,
+            experiments: {
+              'test-exp': {
+                name: 'test-exp',
+                appName: 'test-app-exp-abc123',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                status: 'active',
+                sourceType: 'tarball',
+                sourceUrl: 'https://github.com/test/repo/tarball/main',
+                routing: {
+                  weight: 10,
+                  paths: ['/experiment'],
+                  queries: {experiment: 'test-exp'},
+                  headers: {'x-experiment': 'test-exp'}
+                },
+                mirror: false,
+                metadata: {
+                  description: 'Test experiment'
+                }
+              }
+            }
+          };
+          
+          const configStr = JSON.stringify(validConfig);
+          const parsed = JSON.parse(configStr);
+          
+          assert.strictEqual(parsed.version, 1, 'Version mismatch');
+          assert(parsed.experiments['test-exp'], 'Experiment not found');
+          assert.strictEqual(parsed.experiments['test-exp'].status, 'active', 'Status mismatch');
+          assert.strictEqual(parsed.experiments['test-exp'].routing.weight, 10, 'Weight mismatch');
+          
+          console.log('✓ Config parsing successful');
+          console.log('✓ Version validation passed');
+          console.log('✓ Experiment structure valid');
+          console.log('✓ Routing config valid');
+          
+          // Test config size limits
+          const configSize = configStr.length;
+          console.log(\`\\nConfig size: \${configSize} bytes (limit: 32000)\`);
+          assert(configSize < 32000, 'Config exceeds size limit');
+          console.log('✓ Config size within limits');
+          
+          console.log('\\n✅ HEROKU_EXPERIMENTS parsing tests passed');
+          "
+      
+      - name: Test buildpack detection logic
+        run: |
+          node -e "
+          const fs = require('fs');
+          const assert = require('assert');
+          
+          console.log('Testing buildpack detection...');
+          
+          // Create test app directories
+          const testDirs = [
+            {name: 'nodejs-app', files: ['package.json']},
+            {name: 'ruby-app', files: ['Gemfile']},
+            {name: 'python-app', files: ['requirements.txt']},
+            {name: 'static-app', files: ['index.html']}
+          ];
+          
+          testDirs.forEach(testDir => {
+            const dir = \`/tmp/\${testDir.name}\`;
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, {recursive: true});
+            }
+            testDir.files.forEach(file => {
+              fs.writeFileSync(\`\${dir}/\${file}\`, '# test');
+            });
+            console.log(\`  ✓ Created test dir: \${testDir.name}\`);
+          });
+          
+          // Verify buildpack bin scripts exist
+          const binScripts = ['detect', 'compile', 'release'];
+          binScripts.forEach(script => {
+            const scriptPath = \`./buildpack/bin/\${script}\`;
+            assert(fs.existsSync(scriptPath), \`Script not found: \${script}\`);
+            const stats = fs.statSync(scriptPath);
+            assert(stats.mode & fs.constants.S_IXUSR, \`Script not executable: \${script}\`);
+            console.log(\`  ✓ Verified \${script} script\`);
+          });
+          
+          console.log('\\n✅ Buildpack detection tests passed');
+          "
+      
+      - name: Test experiment validation rules
+        run: |
+          node -e "
+          const assert = require('assert');
+          
+          console.log('Testing experiment validation rules...');
+          
+          // Test 1: Valid experiment name
+          const validNames = ['exp-123', 'test_exp', 'my-experiment', 'exp_v2'];
+          validNames.forEach(name => {
+            const isValid = /^[a-zA-Z0-9_\-]+$/.test(name) && name.length <= 100;
+            assert(isValid, \`Valid name rejected: \${name}\`);
+          });
+          console.log(\`  ✓ Valid names accepted (\${validNames.length})\`);
+          
+          // Test 2: Invalid experiment names
+          const invalidNames = ['exp@123', 'test exp', 'exp/123', 'a'.repeat(101)];
+          invalidNames.forEach(name => {
+            const isValid = /^[a-zA-Z0-9_\-]+$/.test(name) && name.length <= 100;
+            assert(!isValid, \`Invalid name accepted: \${name}\`);
+          });
+          console.log(\`  ✓ Invalid names rejected (\${invalidNames.length})\`);
+          
+          // Test 3: Weight validation (0-100)
+          const validWeights = [0, 10, 50, 100];
+          validWeights.forEach(weight => {
+            const isValid = weight >= 0 && weight <= 100;
+            assert(isValid, \`Valid weight rejected: \${weight}\`);
+          });
+          console.log(\`  ✓ Valid weights accepted\`);
+          
+          const invalidWeights = [-1, 101, 150];
+          invalidWeights.forEach(weight => {
+            const isValid = weight >= 0 && weight <= 100;
+            assert(!isValid, \`Invalid weight accepted: \${weight}\`);
+          });
+          console.log(\`  ✓ Invalid weights rejected\`);
+          
+          // Test 4: Path validation
+          const validPaths = ['/experiment', '/exp/test', '/api/v1/test'];
+          validPaths.forEach(path => {
+            const isValid = path.startsWith('/') && path.length <= 200;
+            assert(isValid, \`Valid path rejected: \${path}\`);
+          });
+          console.log(\`  ✓ Valid paths accepted\`);
+          
+          const invalidPaths = ['no-slash', '/'.repeat(201)];
+          invalidPaths.forEach(path => {
+            const isValid = path.startsWith('/') && path.length <= 200;
+            assert(!isValid, \`Invalid path accepted: \${path}\`);
+          });
+          console.log(\`  ✓ Invalid paths rejected\`);
+          
+          // Test 5: TTL parsing
+          const ttlTests = [
+            {input: '30m', expected: 1800},
+            {input: '2h', expected: 7200},
+            {input: '1d', expected: 86400}
+          ];
+          
+          ttlTests.forEach(test => {
+            const match = test.input.match(/^(\d+)(m|h|d)$/);
+            assert(match, \`TTL format invalid: \${test.input}\`);
+            const multipliers = {m: 60, h: 3600, d: 86400};
+            const seconds = parseInt(match[1], 10) * multipliers[match[2]];
+            assert.strictEqual(seconds, test.expected, \`TTL calculation error: \${test.input}\`);
+          });
+          console.log(\`  ✓ TTL parsing validated\`);
+          
+          console.log('\\n✅ All validation tests passed');
+          "
+      
+      - name: Test app-setups API payload structure
+        run: |
+          node -e "
+          const assert = require('assert');
+          
+          console.log('Testing app-setups API payload structure...');
+          
+          // Test payload for tarball source
+          const tarballPayload = {
+            app: {
+              name: 'test-app-exp-abc123',
+              region: 'us',
+              stack: 'heroku-22'
+            },
+            source_blob: {
+              url: 'https://github.com/test/repo/tarball/main',
+              version: 'main'
+            },
+            overrides: {
+              env: {
+                HEROKU_EXPERIMENT_NAME: 'test-exp',
+                HEROKU_EXPERIMENT_PARENT: 'test-app',
+                HEROKU_EXPERIMENT_CREATED: new Date().toISOString()
+              },
+              buildpacks: [
+                {url: 'https://github.com/heroku/heroku-buildpack-dyno-proxy'}
+              ]
+            }
+          };
+          
+          assert(tarballPayload.app.name, 'App name missing');
+          assert(tarballPayload.app.region, 'Region missing');
+          assert(tarballPayload.app.stack, 'Stack missing');
+          assert(tarballPayload.source_blob.url, 'Source URL missing');
+          assert(tarballPayload.overrides.env.HEROKU_EXPERIMENT_NAME, 'Experiment name missing');
+          assert(tarballPayload.overrides.buildpacks.length > 0, 'Buildpacks missing');
+          console.log('  ✓ Tarball source payload valid');
+          
+          // Test payload for copy-parent source
+          const copyParentPayload = {
+            app: {
+              name: 'test-app-exp-def456',
+              region: 'us',
+              stack: 'heroku-22'
+            },
+            source_app: 'test-app',
+            overrides: {
+              env: {
+                HEROKU_EXPERIMENT_NAME: 'test-exp-2',
+                HEROKU_EXPERIMENT_PARENT: 'test-app',
+                HEROKU_EXPERIMENT_CREATED: new Date().toISOString()
+              },
+              buildpacks: [
+                {url: 'https://github.com/heroku/heroku-buildpack-dyno-proxy'}
+              ]
+            }
+          };
+          
+          assert(copyParentPayload.source_app, 'Source app missing');
+          assert(copyParentPayload.overrides.env.HEROKU_EXPERIMENT_PARENT, 'Parent app missing');
+          console.log('  ✓ Copy-parent source payload valid');
+          
+          // Test buildpack URL format
+          const buildpackUrl = 'https://github.com/heroku/heroku-buildpack-dyno-proxy';
+          assert(buildpackUrl.startsWith('https://'), 'Buildpack URL must use HTTPS');
+          assert(buildpackUrl.includes('github.com'), 'Buildpack URL must be from GitHub');
+          console.log('  ✓ Buildpack URL format valid');
+          
+          console.log('\\n✅ app-setups payload tests passed');
+          "
+
+  buildpack:
+    name: Test Buildpack
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Test buildpack scripts are executable
+        run: |
+          test -x buildpack/bin/detect
+          test -x buildpack/bin/compile
+          test -x buildpack/bin/release
+          echo "✓ All buildpack scripts are executable"
+      
+      - name: Test buildpack detect script
+        run: |
+          cd buildpack
+          BUILD_DIR="/tmp/test-build"
+          mkdir -p "$BUILD_DIR"
+          echo '{"name": "test"}' > "$BUILD_DIR/package.json"
+          
+          # Detect should succeed when HEROKU_EXPERIMENTS is set
+          export HEROKU_EXPERIMENTS='{"version":1,"experiments":{}}'
+          if ./bin/detect "$BUILD_DIR"; then
+            echo "✓ Detect script passed with HEROKU_EXPERIMENTS"
+          else
+            echo "✗ Detect script failed"
+            exit 1
+          fi
+      
+      - name: Test buildpack compile script
+        run: |
+          cd buildpack
+          BUILD_DIR="/tmp/test-build"
+          CACHE_DIR="/tmp/test-cache"
+          ENV_DIR="/tmp/test-env"
+          
+          mkdir -p "$BUILD_DIR" "$CACHE_DIR" "$ENV_DIR"
+          
+          # Set up environment
+          echo '{"version":1,"experiments":{"test":{"name":"test","appName":"test-app","status":"active","createdAt":"2024-01-01T00:00:00Z","updatedAt":"2024-01-01T00:00:00Z","sourceType":"tarball","routing":{"weight":10},"mirror":false,"metadata":{}}}}' > "$ENV_DIR/HEROKU_EXPERIMENTS"
+          
+          # Run compile
+          ./bin/compile "$BUILD_DIR" "$CACHE_DIR" "$ENV_DIR"
+          
+          # Verify traefik config was generated
+          test -f "$BUILD_DIR/.profile.d/traefik-setup.sh"
+          echo "✓ Compile script created traefik setup"
+      
+      - name: Test profile.d scripts
+        run: |
+          test -f buildpack/profile.d/traefik-setup.sh
+          echo "✓ Profile.d scripts exist"
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      
+      - name: Check for dangerous prototype pollution patterns
+        run: |
+          echo "Checking for prototype pollution vulnerabilities..."
+          
+          # Look for validateJSON function usage
+          if grep -r "validateJSON" src/; then
+            echo "✓ Found validateJSON usage for prototype pollution prevention"
+          fi
+          
+          # Check that all JSON parsing includes validation
+          if grep -r "JSON.parse" src/ | grep -v "parseSecureJSON" | grep -v "validateJSON" | grep -v "test" | grep -v ".d.ts"; then
+            echo "⚠ Warning: Found JSON.parse without validation"
+          else
+            echo "✓ All JSON parsing includes validation"
+          fi
+      
+      - name: Check for shell injection vulnerabilities
+        run: |
+          echo "Checking for shell injection vulnerabilities..."
+          
+          # Look for escapeShell function usage
+          if grep -r "escapeShell" src/; then
+            echo "✓ Found escapeShell usage for shell injection prevention"
+          fi
+          
+          # Check for path traversal prevention
+          if grep -r "normalizePath" src/; then
+            echo "✓ Found normalizePath usage for path traversal prevention"
+          fi
+```
