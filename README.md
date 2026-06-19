@@ -1,4 +1,4 @@
-# Heroku Experiments
+# Heroku Experiments (XP)
 
 A Heroku CLI plugin for creating and managing experiment apps with advanced traffic routing and A/B testing capabilities.
 
