@@ -1,4 +1,4 @@
-# Heroku XP
+# Heroku XP (Experiments)
 
 > Production A/B testing and experimentation platform for Heroku apps
 
