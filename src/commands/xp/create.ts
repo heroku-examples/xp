@@ -138,7 +138,7 @@ export default class Create extends Command {
       }
 
       // Step 8: Create or reuse experiment app
-      const experimentAppName = existingExperiment?.experimentAppName || this.generateAppName(branch, parentApp)
+      const experimentAppName = existingExperiment?.appName || this.generateAppName(branch, parentApp)
       let newAppData
 
       if (isUpdate) {
@@ -219,6 +219,16 @@ export default class Create extends Command {
       try {
         await this.enableAutoDeploy(newAppData.id, branch)
         cli.action.stop('✓ Auto-deploy enabled')
+      } catch (error: any) {
+        cli.action.stop('✗')
+        throw error
+      }
+
+      // Step 13a: Trigger initial push
+      cli.action.start(`Triggering initial deploy for branch "${branch}"`)
+      try {
+        await this.triggerPush(newAppData.id, branch)
+        cli.action.stop('✓ Deploy triggered')
       } catch (error: any) {
         cli.action.stop('✗')
         throw error
@@ -662,6 +672,24 @@ export default class Create extends Command {
     }
   }
 
+  private async triggerPush(appId: string, branch: string): Promise<void> {
+    try {
+      const kolkrabbiUrl = process.env.HEROKU_KOLKRABBI_URL || 'https://kolkrabbi.heroku.com'
+
+      await this.heroku.post(
+        `${kolkrabbiUrl}/apps/${appId}/github/push`,
+        {
+          hostname: new URL(kolkrabbiUrl).hostname,
+          body: {
+            branch: branch,
+          },
+        }
+      )
+    } catch (error: any) {
+      throw new Error(`Failed to trigger push: ${error.message}`)
+    }
+  }
+
   private async waitForAppBoot(appName: string): Promise<void> {
     const maxAttempts = 30 // 2.5 minutes
     const pollInterval = 5000 // 5 seconds
@@ -773,7 +801,7 @@ export default class Create extends Command {
     try {
       // Validate total weight doesn't exceed 100%
       const totalWeight = config.experiments
-        .reduce((sum, exp) => sum + (exp.routes?.weight || 0), 0)
+        .reduce((sum, exp) => sum + (exp.rules?.[0]?.weight || 0), 0)
 
       if (totalWeight > 100) {
         throw new Error(`Total experiment weight (${totalWeight}%) exceeds 100%`)

@@ -77,8 +77,10 @@ echo "Starting echo server on port $PORT with background color $COLOR and delay 
 # Main loop - use different netcat syntax for Linux vs macOS
 while true; do
     if [[ "$(uname)" == "Darwin" ]]; then
+        # macOS: nc -l <port>
         nc -l "$PORT" < "$FIFO" | handle_request > "$FIFO"
     else
-        nc -l -p "$PORT" < "$FIFO" | handle_request > "$FIFO"
+        # Ubuntu/Linux: nc -l <port> (no -p flag on modern versions)
+        nc -l "$PORT" < "$FIFO" | handle_request > "$FIFO"
     fi
 done
