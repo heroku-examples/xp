@@ -3,23 +3,20 @@ PORT="${PORT:-8080}"
 COLOR="${COLOR:-blue}"
 DELAY="${DELAY:-0}"
 
-FIFO=$(mktemp -u); mkfifo "$FIFO"; trap "rm -f $FIFO" EXIT
+echo "Server on :$PORT (color=$COLOR, delay=${DELAY}s)"
 
-handle_request() {
+exec socat -U TCP-LISTEN:"$PORT",fork,reuseaddr EXEC:'/bin/bash -c '\''
     request=""; content_length=0; status_code=200
     while IFS= read -r line; do
         line="${line%%$'\r'}"
         [[ "$line" =~ ^[A-Z]+\ /([0-9]+)\ HTTP ]] && status_code="${BASH_REMATCH[1]}"
         [[ "$line" =~ ^[Cc]ontent-[Ll]ength:\ *([0-9]+) ]] && content_length="${BASH_REMATCH[1]}"
-        request+="$line"$'\n'
+        request+="$line"$'\''\n'\''
         [[ -z "$line" ]] && break
     done
     [[ "$content_length" -gt 0 ]] && request+=$(head -c "$content_length")
-    html="<!DOCTYPE html><html><head><style>body{background-color:$COLOR;margin:20px;color:white}pre{white-space:pre-wrap}</style></head><body><pre>$request</pre></body></html>"
+    html="<!DOCTYPE html><html><head><style>body{background-color:'"$COLOR"';margin:20px;color:white}pre{white-space:pre-wrap}</style></head><body><pre>$request</pre></body></html>"
     printf "HTTP/1.1 %d OK\r\nContent-Type: text/html\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" "$status_code" "${#html}"
+    [[ "'"$DELAY"'" =~ ^[0-9]+$ ]] && [[ "'"$DELAY"'" -gt 0 ]] && sleep "'"$DELAY"'"
     printf "%s" "$html"
-    [[ "$DELAY" =~ ^[0-9]+$ ]] && [[ "$DELAY" -gt 0 ]] && sleep "$DELAY"
-}
-
-echo "Server on :$PORT (color=$COLOR, delay=${DELAY}s)"
-while true; do nc -l "$PORT" < "$FIFO" | handle_request > "$FIFO"; done
+'\''
