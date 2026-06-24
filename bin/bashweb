@@ -60,17 +60,19 @@ handle_request() {
 
     response_length=${#html_response}
 
-    # Delay BEFORE writing response (sleep is safe here, outside the write phase)
-    if [[ "$DELAY_RESPONSE" =~ ^[0-9]+$ ]] && [[ "$DELAY_RESPONSE" -gt 0 ]]; then
-        sleep "$DELAY_RESPONSE"
-    fi
-
-    # Write response
+    # Write headers immediately to complete connection/handshake
     printf "HTTP/1.1 %d OK\r\n" "$status_code"
     printf "Content-Type: text/html; charset=utf-8\r\n"
     printf "Content-Length: %d\r\n" "$response_length"
     printf "Connection: close\r\n"
     printf "\r\n"
+
+    # Delay AFTER headers but BEFORE body (connection is accepted, response is delayed)
+    if [[ "$DELAY_RESPONSE" =~ ^[0-9]+$ ]] && [[ "$DELAY_RESPONSE" -gt 0 ]]; then
+        sleep "$DELAY_RESPONSE"
+    fi
+
+    # Write response body
     printf "%s" "$html_response"
 }
 
