@@ -43,10 +43,10 @@ handle_request() {
         request+="$body"
     fi
 
-    # Implement delay using read timeout instead of sleep
-    # This avoids blocking issues with sleep in the pipeline
+    # Delay for configured DELAY_RESPONSE (only if DELAY_RESPONSE is a positive number)
+    # Use perl to avoid blocking the pipeline (sleep causes FIFO deadlock)
     if [[ "$DELAY_RESPONSE" =~ ^[0-9]+$ ]] && [[ "$DELAY_RESPONSE" -gt 0 ]]; then
-        read -t "$DELAY_RESPONSE" < /dev/null 2>/dev/null || true
+        perl -e "select(undef, undef, undef, $DELAY_RESPONSE);"
     fi
 
     # Build HTML response with colored background
