@@ -142,15 +142,15 @@ app.post('/products', (req, res) => {
 
 // Slow endpoint for testing performance
 app.get('/slow', async (req, res) => {
-  const delay = parseInt(req.query.delay) || 1000;
+  const DELAY_RESPONSE = parseInt(req.query.DELAY_RESPONSE) || 1000;
 
-  await new Promise(resolve => setTimeout(resolve, delay));
+  await new Promise(resolve => setTimeout(resolve, DELAY_RESPONSE));
 
   res.json({
     message: 'Slow endpoint',
     app: appName,
     version: appVersion,
-    delay: `${delay}ms`,
+    DELAY_RESPONSE: `${DELAY_RESPONSE}ms`,
     timestamp: new Date().toISOString()
   });
 });

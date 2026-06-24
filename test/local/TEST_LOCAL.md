@@ -556,7 +556,7 @@ HEROKU_EXPERIMENT_CREATED     # ISO 8601 timestamp
 | `/echo` | ANY | Echo request details |
 | `/users` | POST | User endpoint for JSON body testing |
 | `/products` | POST | Product endpoint for JSON body testing |
-| `/slow?delay=1000` | GET | Slow endpoint (latency testing) |
+| `/slow?DELAY_RESPONSE=1000` | GET | Slow endpoint (latency testing) |
 | `/error` | GET | Returns 500 error |
 | `/load?iterations=100000` | GET | CPU load endpoint |
 

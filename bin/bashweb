@@ -6,7 +6,7 @@
 
 PORT="${PORT:-8080}"
 COLOR="${COLOR:-blue}"
-DELAY="${DELAY:-0}"
+DELAY_RESPONSE="${DELAY_RESPONSE:-0}"
 
 # Create a temporary FIFO for the response
 FIFO=$(mktemp -u)
@@ -42,9 +42,9 @@ handle_request() {
         request+="$body"
     fi
     
-    # Sleep for configured delay (only if DELAY is a positive number)
-    if [[ "$DELAY" =~ ^[0-9]+$ ]] && [[ "$DELAY" -gt 0 ]]; then
-        sleep "$DELAY"
+    # Sleep for configured DELAY_RESPONSE (only if DELAY_RESPONSE is a positive number)
+    if [[ "$DELAY_RESPONSE" =~ ^[0-9]+$ ]] && [[ "$DELAY_RESPONSE" -gt 0 ]]; then
+        sleep "$DELAY_RESPONSE"
     fi
 
     # Build HTML response with colored background
@@ -72,7 +72,7 @@ handle_request() {
     printf "%s" "$html_response"
 }
 
-echo "Starting echo server on port $PORT with background color $COLOR and delay ${DELAY}s..."
+echo "Starting echo server on port $PORT with background color $COLOR and DELAY_RESPONSE ${DELAY_RESPONSE}s..."
 
 # Main loop - use different netcat syntax for Linux vs macOS
 while true; do

@@ -111,7 +111,7 @@ ANY  /experiment*     → Experiment endpoints for path testing
 ANY  /echo            → Echo request details
 POST /users           → User endpoint for JSON body testing
 POST /products        → Product endpoint for JSON body testing
-GET  /slow?delay=ms   → Slow endpoint (latency testing)
+GET  /slow?DELAY_RESPONSE=ms   → Slow endpoint (latency testing)
 GET  /error           → Returns 500 error
 GET  /load?iterations → CPU load endpoint
 
