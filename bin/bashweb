@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# Echo server - returns request headers and body as plain text response
+# Echo server - returns request headers and body as HTML with configurable background color
 # Listens on $PORT (default 8080)
 # Works on both Ubuntu (Linux) and macOS
 
 PORT="${PORT:-8080}"
+COLOR="${COLOR:-blue}"
+DELAY="${DELAY:-0}"
 
 # Create a temporary FIFO for the response
 FIFO=$(mktemp -u)
@@ -40,19 +42,37 @@ handle_request() {
         request+="$body"
     fi
     
-    # Build and send response
-    response_body="$request"
-    response_length=${#response_body}
-    
+    # Sleep for configured delay
+    if [[ "$DELAY" -gt 0 ]]; then
+        sleep "$DELAY"
+    fi
+
+    # Build HTML response with colored background
+    html_response="<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"utf-8\">
+    <style>
+        body { background-color: $COLOR; margin: 20px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+<pre>$request</pre>
+</body>
+</html>"
+
+    response_length=${#html_response}
+
     printf "HTTP/1.1 %d OK\r\n" "$status_code"
-    printf "Content-Type: text/plain; charset=utf-8\r\n"
+    printf "Content-Type: text/html; charset=utf-8\r\n"
     printf "Content-Length: %d\r\n" "$response_length"
     printf "Connection: close\r\n"
     printf "\r\n"
-    printf "%s" "$response_body"
+    printf "%s" "$html_response"
 }
 
-echo "Starting echo server on port $PORT..."
+echo "Starting echo server on port $PORT with background color $COLOR and delay ${DELAY}s..."
 
 # Main loop - use different netcat syntax for Linux vs macOS
 while true; do
