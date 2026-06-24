@@ -1,0 +1,17 @@
+FROM heroku/heroku:22
+
+# Install curl for testing
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy the bashweb script
+COPY bin/bashweb /app/bashweb
+RUN chmod +x /app/bashweb
+
+# Copy test script
+COPY test/test-bashweb-delay.sh /app/test-bashweb-delay.sh
+RUN chmod +x /app/test-bashweb-delay.sh
+
+WORKDIR /app
+
+# Run the test
+CMD ["/app/test-bashweb-delay.sh"]
