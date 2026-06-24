@@ -53,7 +53,7 @@ handle_request() {
 <head>
     <meta charset=\"utf-8\">
     <style>
-        body { background-color: $COLOR; margin: 20px; }
+        body { background-color: $COLOR; margin: 20px; color: white; }
         pre { white-space: pre-wrap; word-wrap: break-word; }
     </style>
 </head>
