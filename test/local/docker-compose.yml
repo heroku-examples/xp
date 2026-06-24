@@ -18,9 +18,9 @@ services:
       - HEROKU_APP_NAME=parent-app
       # Example: 10% weight-based routing to experiment
       - HEROKU_EXPERIMENTS=${HEROKU_EXPERIMENTS:-}
-    volumes:
-      - ./test-app:/app
-      - ./test-app/node_modules:/app/node_modules
+    # Note: No volume mounts - use image copy for isolation
+    # volumes:
+    #   - ./test-app:/app
     networks:
       - xp-network
     healthcheck:

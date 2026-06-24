@@ -4,9 +4,6 @@
 
 Heroku XP is a CLI plugin that enables **controlled experimentation** by creating temporary experiment apps that receive a portion of your real traffic through advanced routing rules.
 
-[![npm version](https://badge.fury.io/js/%40heroku-cli%2Fplugin-experiments.svg)](https://www.npmjs.com/package/@heroku-cli/plugin-experiments)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 ## Overview
 
 **Test features with real traffic before full rollout.** Unlike review apps (which are isolated sandboxes), experiments enable you to:
@@ -23,32 +20,18 @@ Heroku XP is a CLI plugin that enables **controlled experimentation** by creatin
 ```bash
 # Install the CLI plugin
 heroku plugins:install @heroku-cli/xp
-
-# Add the buildpack (required for traffic routing)
-heroku buildpacks:add https://github.com/heroku/xp --app YOUR-APP
-
-# Deploy to activate
-git commit -am "Add Heroku XP support"
-git push heroku main
 ```
-
-See [QUICKSTART.md](QUICKSTART.md) for a detailed 5-minute setup guide.
 
 ## Basic Usage
 
 ### Create an Experiment
 
 ```bash
-# Route 10% of traffic to a new feature branch
+# Route 50% of traffic to a new feature branch
 heroku xp:create \
-  --app prod-app \
+  --app myapp \
   --branch new-ui \
-  --weight 10
-```
-
-```bash
-# Test experiment response
-curl prod-app.herokuapp.com/?x-heroku-xp=new-ui
+  --weight 50
 ```
 
 ### Monitor Performance
@@ -61,35 +44,35 @@ heroku xp:watch --app prod-app
 ### Update Routing Rule
 
 ```bash
-# Raise to 50% of traffic
-heroku xp:update -app prod-app --branch new-ui \
-  --weight 50
+# Lower to 1% of traffic
+heroku xp:update -app myapp --branch new-ui \
+  --weight 1
 ```
 
 ### Advanced Routing
 
 ```bash
 # Route specific paths to experiment
-heroku xp:create --app prod-app --branch api-v2 \
+heroku xp:create --app myapp --branch api-v2 \
   --path /api/v2
 
 # Route beta users via JSON body content
-heroku xp:create --app prod-app --branch beta-user \
+heroku xp:create --app myapp --branch beta-user \
   --body-json '$.user.id == 123'
 
 # Mirror all traffic to git tag to load test for 5 min
-heroku xp:create --app prod-app --ref v1.1 \
-  --path \ --mirror --ttl 5min
+heroku xp:create --app myapp --branch v1.1 \
+  --path / --mirror --ttl 5min
 ```
 
 ### Clean Up
 
 ```bash
 # Stop routing traffic
-heroku xp:stop --app prod-app --branch new-ui
+heroku xp:stop --app myapp --branch new-ui
 
 # Destroy experiment completely
-heroku xp:destroy --app prod-app --branch exp-new-ui --confirm prod-app
+heroku xp:destroy --app myapp --branch exp-new-ui --confirm prod-app
 ```
 
 ## Documentation

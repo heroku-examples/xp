@@ -8,28 +8,24 @@ Get xp environments running in 5 minutes.
 - A deployed Heroku app
 - Git repository connected to your app
 
-## Step 1: Install (30 seconds)
+## Step 1: Install
 
 ```bash
 # Install the CLI plugin
-heroku plugins:install @heroku-cli/plugin-xp
+heroku plugins:install @heroku-cli/xp
 
 # Add the buildpack to your app
-heroku buildpacks:add https://github.com/heroku/heroku-buildpack-traefik-xp --app YOUR-APP-NAME
+heroku buildpacks:add https://github.com/heroku/xp --app YOUR-APP-NAME
 ```
 
-## Step 2: Create XP (1 minute)
+## Step 2: Create Experiment
 
 ```bash
 # Create a xp environment that receives 10% of traffic
 heroku xp:create \
-  --app YOUR-APP-NAME \
-  --branch YOUR-BRANCH-NAME \
-  --weight 10 \
-  --mirror
-
-# Example:
-heroku xp:create --app bash-web --branch my-feature --weight 10 --mirror
+  --app $YOUR-APP-NAME \
+  --branch $YOUR-BRANCH-NAME \
+  --weight 10
 ```
 
 This will:

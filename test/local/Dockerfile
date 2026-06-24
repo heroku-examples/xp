@@ -1,12 +1,14 @@
 # Dockerfile to simulate Heroku dyno environment for XP plugin testing
-# Based on Heroku-22 stack (Ubuntu 22.04)
+# Using official Node.js image (simpler than Heroku base)
 
-FROM heroku/heroku:22
+FROM node:18-bullseye-slim
 
-# Install Node.js 18 LTS (matching Heroku runtime)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g npm@latest
+# Install curl and other basic tools
+USER root
+RUN apt-get update && \
+    apt-get install -y curl tar gzip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Traefik (simulating buildpack behavior)
 ARG TRAEFIK_VERSION=2.10.7
@@ -18,30 +20,26 @@ RUN curl -L "https://github.com/traefik/traefik/releases/download/v${TRAEFIK_VER
     rm traefik.tar.gz
 
 # Create app directory structure (simulating Heroku dyno layout)
+# This must be done as root before switching users
 RUN mkdir -p /app/.heroku/traefik/config/dynamic && \
-    mkdir -p /app/.heroku/traefik/bin
-
-# Set working directory
-WORKDIR /app
-
-# Copy test app files
-COPY test-app/package*.json ./
-RUN npm install
-
-COPY test-app/ ./
+    mkdir -p /app/.heroku/traefik/bin && \
+    chown -R node:node /app
 
 # Create traefik-wrapper script (simulating buildpack behavior)
+# Do this as root so it can be in /app before we switch users
 RUN echo '#!/bin/bash\n\
 set -e\n\
+\n\
+# Save the main PORT for Traefik\n\
+TRAEFIK_PORT=${PORT:-8080}\n\
 \n\
 # Generate Traefik config from HEROKU_EXPERIMENTS\n\
 if [ -n "$HEROKU_EXPERIMENTS" ]; then\n\
   echo "Generating Traefik configuration..."\n\
-  node /app/generate-traefik-config.js\n\
+  PORT=5000 node /app/generate-traefik-config.js\n\
 fi\n\
 \n\
-# Start Traefik in background on $PORT\n\
-TRAEFIK_PORT=${PORT:-8080}\n\
+# Start Traefik in background on the main PORT\n\
 echo "Starting Traefik on port $TRAEFIK_PORT..."\n\
 traefik \\\n\
   --entrypoints.web.address=:${TRAEFIK_PORT} \\\n\
@@ -53,12 +51,9 @@ traefik \\\n\
 \n\
 TRAEFIK_PID=$!\n\
 \n\
-# Set PORT=5000 for the app (Heroku convention)\n\
-export PORT=5000\n\
-\n\
-# Start the application\n\
+# Start the application on port 5000 (Heroku convention)\n\
 echo "Starting application on port 5000..."\n\
-exec "$@" &\n\
+PORT=5000 "$@" &\n\
 APP_PID=$!\n\
 \n\
 # Wait for either process to exit\n\
@@ -70,9 +65,22 @@ kill $TRAEFIK_PID $APP_PID 2>/dev/null || true\n\
 \n\
 exit $EXIT_CODE\n\
 ' > /app/.heroku/traefik/bin/traefik-wrapper && \
-    chmod +x /app/.heroku/traefik/bin/traefik-wrapper
+    chmod +x /app/.heroku/traefik/bin/traefik-wrapper && \
+    chown -R node:node /app
 
-# Add traefik-wrapper to PATH
+# Set working directory
+WORKDIR /app
+
+# Switch to node user
+USER node
+
+# Copy test app files
+COPY --chown=node:node test-app/package*.json ./
+RUN npm install
+
+COPY --chown=node:node test-app/ ./
+
+# Add traefik-wrapper to PATH (already created earlier as root)
 ENV PATH="/app/.heroku/traefik/bin:${PATH}"
 
 # Heroku environment variables
@@ -92,4 +100,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Start via Procfile command
-CMD ["traefik-wrapper", "node", "server.js"]
+# Use bash explicitly since traefik-wrapper has bash shebang
+CMD ["bash", "/app/.heroku/traefik/bin/traefik-wrapper", "node", "server.js"]
