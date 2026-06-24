@@ -1,26 +1,25 @@
-// ===== NEW SIMPLIFIED FORMAT =====
+// ===== NEW SIMPLIFIED FORMAT (v2 - FINAL) =====
 
-export interface SimplifiedRoutingConfig {
-  weight?: number
-  paths?: string[]
-  queries?: Record<string, string>
-  headers?: Record<string, string>
-  bodyJson?: string
+export interface SimplifiedRule {
   mirror?: boolean
-  ttl?: number
-  expiresAt?: string
+  weight?: number
+  path?: string  // Comma-separated paths: "/api/v3,/api/v4"
+  query?: string  // Format: "key: value"
+  header?: string  // Format: "key: value"
+  method?: string  // HTTP method: GET, POST, etc.
 }
 
 export interface SimplifiedExperimentEntry {
-  appName: string  // Parent/source app name
+  appName: string  // Experiment app name (e.g., "prod-app-exp-new-ui-a7f3d")
+  appID: string  // App UUID
+  parentApp: string  // Parent/source app name for composite key lookup
   branch: string
   version: number
+  repo: string
+  url: string
+  rules: SimplifiedRule[]
   createdAt: string
   updatedAt: string
-  experimentAppName?: string  // The actual experiment app name (generated)
-  repo?: string
-  url?: string
-  routes?: SimplifiedRoutingConfig[]
 }
 
 export interface SimplifiedExperimentsConfig {
@@ -153,38 +152,59 @@ export function parseExperimentsConfig(configStr: string): AnyExperimentsConfig 
  */
 export function migrateToSimplified(legacyConfig: ExperimentsConfig): SimplifiedExperimentsConfig {
   const experiments: SimplifiedExperimentEntry[] = Object.values(legacyConfig.experiments).map(exp => {
-    const entry: SimplifiedExperimentEntry = {
-      appName: exp.appName,
-      branch: exp.name, // In v1, 'name' was often the branch name
-      version: 1,
-      createdAt: exp.createdAt,
-      updatedAt: exp.updatedAt,
-    }
+    // Build rules from v1 routing config
+    const rules: SimplifiedRule[] = []
 
-    // Add optional fields
-    if (exp.metadata?.repo) {
-      entry.repo = exp.metadata.repo
-    }
+    if (exp.routing || exp.mirror) {
+      const rule: SimplifiedRule = {}
 
-    // Convert routing config
-    if (exp.routing || exp.mirror || exp.ttl || exp.expiresAt) {
-      const route: SimplifiedRoutingConfig = {}
-
-      if (exp.routing.weight !== undefined) route.weight = exp.routing.weight
-      if (exp.routing.paths) route.paths = exp.routing.paths
-      if (exp.routing.queries) route.queries = exp.routing.queries
-      if (exp.routing.headers) route.headers = exp.routing.headers
-      if (exp.routing.bodyJson) route.bodyJson = exp.routing.bodyJson
-
-      // Convert mirror field (v1: boolean | 'both', v2: boolean)
       if (exp.mirror === true || exp.mirror === 'both') {
-        route.mirror = true
+        rule.mirror = true
       }
 
-      if (exp.ttl) route.ttl = exp.ttl
-      if (exp.expiresAt) route.expiresAt = exp.expiresAt
+      if (exp.routing?.weight !== undefined) {
+        rule.weight = exp.routing.weight
+      }
 
-      entry.routes = [route]
+      // Convert paths array to comma-separated string
+      if (exp.routing?.paths && exp.routing.paths.length > 0) {
+        rule.path = exp.routing.paths.join(',')
+      }
+
+      // Convert queries object to string format "key: value" (first entry)
+      if (exp.routing?.queries) {
+        const entries = Object.entries(exp.routing.queries)
+        if (entries.length > 0) {
+          const [key, value] = entries[0]
+          rule.query = `${key}: ${value}`
+        }
+      }
+
+      // Convert headers object to string format "key: value" (first entry)
+      if (exp.routing?.headers) {
+        const entries = Object.entries(exp.routing.headers)
+        if (entries.length > 0) {
+          const [key, value] = entries[0]
+          rule.header = `${key}: ${value}`
+        }
+      }
+
+      rule.method = 'GET'  // Default for v1 migrations
+
+      rules.push(rule)
+    }
+
+    const entry: SimplifiedExperimentEntry = {
+      appName: exp.appName,  // In v1, this was the experiment app name
+      appID: exp.appId || '',  // May not exist in v1
+      parentApp: exp.sourceApp || '',  // Best guess - may need manual correction
+      branch: exp.name,  // In v1, 'name' was often the branch name
+      version: 1,
+      repo: exp.metadata?.repo || '',
+      url: '',  // Not available in v1 format
+      rules,
+      createdAt: exp.createdAt,
+      updatedAt: exp.updatedAt,
     }
 
     return entry
@@ -197,14 +217,14 @@ export function migrateToSimplified(legacyConfig: ExperimentsConfig): Simplified
 }
 
 /**
- * Find experiment by appName + branch (composite key for v2)
+ * Find experiment by parentApp + branch (composite key for v2)
  */
 export function findExperimentByKey(
   config: SimplifiedExperimentsConfig,
-  appName: string,
+  parentApp: string,
   branch: string
 ): SimplifiedExperimentEntry | undefined {
-  return config.experiments.find(exp => exp.appName === appName && exp.branch === branch)
+  return config.experiments.find(exp => exp.parentApp === parentApp && exp.branch === branch)
 }
 
 /**

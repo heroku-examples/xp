@@ -242,6 +242,7 @@ export default class Create extends Command {
         const newExperiment = this.buildSimplifiedExperimentEntry(
           parentApp,
           experimentAppName,
+          newAppData.id,
           branch,
           repoData.repo,
           newAppData.web_url,
@@ -252,7 +253,7 @@ export default class Create extends Command {
         if (isUpdate) {
           // Replace existing experiment
           const index = experimentsConfig.experiments.findIndex(
-            exp => exp.appName === parentApp && exp.branch === branch
+            exp => exp.parentApp === parentApp && exp.branch === branch
           )
           if (index !== -1) {
             experimentsConfig.experiments[index] = newExperiment
@@ -696,67 +697,70 @@ export default class Create extends Command {
   private buildSimplifiedExperimentEntry(
     parentApp: string,
     experimentAppName: string,
+    appID: string,
     branch: string,
     repo: string,
     url: string | undefined,
     existingExperiment: SimplifiedExperimentEntry | undefined,
     flags: any
   ): SimplifiedExperimentEntry {
-    // Parse query parameters
-    const queries: Record<string, string> = {}
-    if (flags.query) {
-      for (const query of flags.query) {
-        const [key, value] = query.split('=')
-        queries[key] = value
-      }
-    }
-
-    // Parse headers
-    const headers: Record<string, string> = {}
-    if (flags.header) {
-      for (const header of flags.header) {
-        const [key, value] = header.split('=')
-        headers[key] = value
-      }
-    }
-
     const now = new Date().toISOString()
 
-    const entry: SimplifiedExperimentEntry = {
-      appName: parentApp,
-      branch,
-      version: existingExperiment ? existingExperiment.version + 1 : 1,
-      createdAt: existingExperiment?.createdAt || now,
-      updatedAt: now,
-      experimentAppName,
-      repo,
-    }
+    // Build rules array
+    const rules: any[] = []
 
-    // Add optional url
-    if (url) {
-      entry.url = url
-    }
-
-    // Build routes config if routing parameters exist
-    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header
+    // Create rule if any routing parameters exist
+    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method
 
     if (hasRoutingConfig) {
-      const route: any = {}
+      const rule: any = {}
+
+      // Mirror defaults to true if not specified
+      rule.mirror = true
 
       if (flags.weight !== undefined) {
-        route.weight = flags.weight
-      }
-      if (flags.path) {
-        route.paths = flags.path
-      }
-      if (Object.keys(queries).length > 0) {
-        route.queries = queries
-      }
-      if (Object.keys(headers).length > 0) {
-        route.headers = headers
+        rule.weight = flags.weight
       }
 
-      entry.routes = [route]
+      // Convert path array to comma-separated string
+      if (flags.path && Array.isArray(flags.path)) {
+        rule.path = flags.path.join(',')
+      }
+
+      // Convert query array to string format "key: value"
+      if (flags.query && Array.isArray(flags.query)) {
+        // Take first query param for now (format: "key=value" -> "key: value")
+        const [key, value] = flags.query[0].split('=')
+        rule.query = `${key}: ${value}`
+      }
+
+      // Convert header array to string format "key: value"
+      if (flags.header && Array.isArray(flags.header)) {
+        // Take first header for now (format: "key=value" -> "key: value")
+        const [key, value] = flags.header[0].split('=')
+        rule.header = `${key}: ${value}`
+      }
+
+      if (flags.method) {
+        rule.method = flags.method
+      } else {
+        rule.method = 'GET'  // Default method
+      }
+
+      rules.push(rule)
+    }
+
+    const entry: SimplifiedExperimentEntry = {
+      appName: experimentAppName,
+      appID,
+      parentApp,
+      branch,
+      version: existingExperiment ? existingExperiment.version + 1 : 1,
+      repo,
+      url: url || '',
+      rules,
+      createdAt: existingExperiment?.createdAt || now,
+      updatedAt: now,
     }
 
     return entry
