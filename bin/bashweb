@@ -42,8 +42,8 @@ handle_request() {
         request+="$body"
     fi
     
-    # Sleep for configured delay
-    if [[ "$DELAY" -gt 0 ]]; then
+    # Sleep for configured delay (only if DELAY is a positive number)
+    if [[ "$DELAY" =~ ^[0-9]+$ ]] && [[ "$DELAY" -gt 0 ]]; then
         sleep "$DELAY"
     fi
 
