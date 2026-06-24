@@ -17,8 +17,8 @@ handle_request() {
     [[ "$content_length" -gt 0 ]] && request+=$(head -c "$content_length")
     html="<!DOCTYPE html><html><head><style>body{background-color:$COLOR;margin:20px;color:white}pre{white-space:pre-wrap}</style></head><body><pre>$request</pre></body></html>"
     printf "HTTP/1.1 %d OK\r\nContent-Type: text/html\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" "$status_code" "${#html}"
-    [[ "$DELAY" =~ ^[0-9]+$ ]] && [[ "$DELAY" -gt 0 ]] && sleep "$DELAY"
     printf "%s" "$html"
+    [[ "$DELAY" =~ ^[0-9]+$ ]] && [[ "$DELAY" -gt 0 ]] && sleep "$DELAY"
 }
 
 echo "Server on :$PORT (color=$COLOR, delay=${DELAY}s)"
