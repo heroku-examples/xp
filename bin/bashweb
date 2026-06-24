@@ -1,25 +1,61 @@
-#!/bin/bash
-PORT="${PORT:-8080}"
-COLOR="${COLOR:-blue}"
-DELAY="${DELAY:-0}"
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Socket;
+use POSIX qw(strftime);
 
-FIFO=$(mktemp -u); mkfifo "$FIFO"; trap "rm -f $FIFO" EXIT
+my $PORT = $ENV{PORT} || 8080;
+my $COLOR = $ENV{COLOR} || 'blue';
+my $DELAY = $ENV{DELAY} || 0;
 
-handle_request() {
-    request=""; content_length=0; status_code=200
-    while IFS= read -r line; do
-        line="${line%%$'\r'}"
-        [[ "$line" =~ ^[A-Z]+\ /([0-9]+)\ HTTP ]] && status_code="${BASH_REMATCH[1]}"
-        [[ "$line" =~ ^[Cc]ontent-[Ll]ength:\ *([0-9]+) ]] && content_length="${BASH_REMATCH[1]}"
-        request+="$line"$'\n'
-        [[ -z "$line" ]] && break
-    done
-    [[ "$content_length" -gt 0 ]] && request+=$(head -c "$content_length")
-    html="<!DOCTYPE html><html><head><style>body{background-color:$COLOR;margin:20px;color:white}pre{white-space:pre-wrap}</style></head><body><pre>$request</pre></body></html>"
-    printf "HTTP/1.1 %d OK\r\nContent-Type: text/html\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" "$status_code" "${#html}"
-    printf "%s" "$html"
-    [[ "$DELAY" =~ ^[0-9]+$ ]] && [[ "$DELAY" -gt 0 ]] && sleep "$DELAY"
+print "Server on :$PORT (color=$COLOR, delay=${DELAY}s)\n";
+
+socket(my $server, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or die "socket: $!";
+setsockopt($server, SOL_SOCKET, SO_REUSEADDR, 1) or die "setsockopt: $!";
+bind($server, sockaddr_in($PORT, INADDR_ANY)) or die "bind: $!";
+listen($server, SOMAXCONN) or die "listen: $!";
+
+while (my $addr = accept(my $client, $server)) {
+    my $pid = fork();
+    if (!defined $pid) {
+        die "fork: $!";
+    } elsif ($pid == 0) {
+        close($server);
+        handle_request($client);
+        exit(0);
+    }
+    close($client);
 }
 
-echo "Server on :$PORT (color=$COLOR, delay=${DELAY}s)"
-while true; do nc -l "$PORT" < "$FIFO" | handle_request > "$FIFO"; done
+sub handle_request {
+    my ($client) = @_;
+    my $request = '';
+    my $content_length = 0;
+    my $status_code = 200;
+
+    while (<$client>) {
+        s/\r?\n$//;
+        $status_code = $1 if /^[A-Z]+\s+\/(\d{3})\s+HTTP/;
+        $content_length = $1 if /^Content-Length:\s*(\d+)/i;
+        $request .= $_ . "\n";
+        last if $_ eq '';
+    }
+
+    if ($content_length > 0) {
+        read($client, my $body, $content_length);
+        $request .= $body;
+    }
+
+    my $html = "<!DOCTYPE html><html><head><style>body{background-color:$COLOR;margin:20px;color:white}pre{white-space:pre-wrap}</style></head><body><pre>$request</pre></body></html>";
+
+    print $client "HTTP/1.1 $status_code OK\r\n";
+    print $client "Content-Type: text/html\r\n";
+    print $client "Content-Length: " . length($html) . "\r\n";
+    print $client "Connection: close\r\n";
+    print $client "\r\n";
+
+    sleep($DELAY) if $DELAY > 0;
+
+    print $client $html;
+    close($client);
+}
