@@ -455,42 +455,55 @@ export default class Create extends Command {
   }
 
   private generateAppName(branch: string, parentApp: string): string {
-    // Generate app name: {branch}-{parent-app}-{rand}
+    // Generate app name: {parent-app-name}-xp-{branch}-{rand}
     // Max 30 chars for Heroku app names, only lowercase letters, numbers, and dashes
+    // Priority: xp (min 3), rand (min 3), parent (min 3), branch (min 3)
     const rand = crypto.randomBytes(2).toString('hex') // 4 chars
+    const xpMarker = 'xp' // 2 chars
 
     // Sanitize branch name: lowercase, replace invalid chars with dashes
     const sanitizedBranch = branch
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-') // collapse multiple dashes
-      .replace(/^-|-$/g, '') // remove leading/trailing dashes
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
 
-    // Build name parts
-    const parts = [sanitizedBranch, parentApp, rand]
-    let appName = parts.join('-')
+    // Calculate available space: 30 - 3 dashes - 2 (xp) = 25 chars for parent+branch+rand
+    const dashes = 3
+    const available = 30 - xpMarker.length - dashes
 
-    // Truncate if needed (max 30 chars)
-    if (appName.length > 30) {
-      // Calculate how much we need to trim
-      const excess = appName.length - 30
+    // Minimum lengths (priority order: xp, rand, parent, branch)
+    const minRand = 3
+    const minParent = 3
+    const minBranch = 3
 
-      // Prioritize keeping rand and some of parent app, trim branch first
-      const minParentLength = 8 // keep at least 8 chars of parent app
-      const maxBranchLength = Math.max(0, sanitizedBranch.length - excess)
+    // Start with full lengths
+    let parentLen = parentApp.length
+    let branchLen = sanitizedBranch.length
+    let randLen = rand.length
 
-      if (maxBranchLength < 3) {
-        // If branch would be too short, trim parent app too
-        const totalAvailable = 30 - rand.length - 2 // 2 dashes
-        const branchLength = Math.min(sanitizedBranch.length, Math.floor(totalAvailable / 2))
-        const parentLength = totalAvailable - branchLength
-        appName = `${sanitizedBranch.slice(0, branchLength)}-${parentApp.slice(0, parentLength)}-${rand}`
-      } else {
-        appName = `${sanitizedBranch.slice(0, maxBranchLength)}-${parentApp}-${rand}`
+    const total = () => parentLen + branchLen + randLen
+
+    // Trim in priority order: branch first, then parent, then rand
+    if (total() > available) {
+      const excess = total() - available
+      // Try trimming branch first
+      const branchTrim = Math.min(excess, Math.max(0, branchLen - minBranch))
+      branchLen -= branchTrim
+
+      if (total() > available) {
+        // Still too long, trim parent
+        const parentTrim = Math.min(total() - available, Math.max(0, parentLen - minParent))
+        parentLen -= parentTrim
+
+        if (total() > available) {
+          // Still too long, trim rand (lowest priority)
+          randLen = Math.max(minRand, randLen - (total() - available))
+        }
       }
     }
 
-    // Final sanitization
+    const appName = `${parentApp.slice(0, parentLen)}-${xpMarker}-${sanitizedBranch.slice(0, branchLen)}-${rand.slice(0, randLen)}`
     return appName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 30)
   }
 
