@@ -50,11 +50,9 @@ export default class Create extends Command {
     }),
     region: flags.string({
       description: 'Heroku region',
-      default: 'us',
     }),
     stack: flags.string({
       description: 'Heroku stack',
-      default: 'heroku-22',
     }),
   }
 
