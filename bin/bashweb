@@ -18,33 +18,35 @@ handle_request() {
     request=""
     content_length=0
     status_code=200
-    
+    delay_start=""
+
     # Read headers
     while IFS= read -r line; do
         line="${line%%$'\r'}"
-        
+
         # Parse request line for path (e.g., GET /123 HTTP/1.1)
         if [[ "$line" =~ ^[A-Z]+\ /([0-9]+)\ HTTP ]]; then
             status_code="${BASH_REMATCH[1]}"
         fi
-        
+
         if [[ "$line" =~ ^[Cc]ontent-[Ll]ength:\ *([0-9]+) ]]; then
             content_length="${BASH_REMATCH[1]}"
         fi
-        
+
         request+="$line"$'\n'
         [[ -z "$line" ]] && break
     done
-    
+
     # Read body if present
     if [[ "$content_length" -gt 0 ]]; then
         body=$(head -c "$content_length")
         request+="$body"
     fi
-    
-    # Sleep for configured DELAY_RESPONSE (only if DELAY_RESPONSE is a positive number)
+
+    # Implement delay using read timeout instead of sleep
+    # This avoids blocking issues with sleep in the pipeline
     if [[ "$DELAY_RESPONSE" =~ ^[0-9]+$ ]] && [[ "$DELAY_RESPONSE" -gt 0 ]]; then
-        sleep "$DELAY_RESPONSE"
+        read -t "$DELAY_RESPONSE" < /dev/null 2>/dev/null || true
     fi
 
     # Build HTML response with colored background
