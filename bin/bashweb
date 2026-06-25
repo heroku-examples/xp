@@ -1,12 +1,12 @@
 #!/usr/bin/env perl
+my $PORT = $ENV{PORT} || 8080;
+my $COLOR = $ENV{COLOR} || 'black';
+my $DELAY = $ENV{DELAY} || 10;
+
 use strict;
 use warnings;
 use Socket;
 use POSIX qw(strftime);
-
-my $PORT = $ENV{PORT} || 8080;
-my $COLOR = $ENV{COLOR} || 'blue';
-my $DELAY = $ENV{DELAY} || 0;
 
 print "Server on :$PORT (color=$COLOR, delay=${DELAY}s)\n";
 
