@@ -1,1 +1,1 @@
-web: bin/bashweb
+web: bin/web
