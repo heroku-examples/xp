@@ -6,9 +6,25 @@ my $DELAY = $ENV{DELAY} || 0;
 use strict;
 use warnings;
 use Socket;
-use POSIX qw(strftime);
+use POSIX ":sys_wait_h";
 
-print "Server on :$PORT (color=$COLOR, delay=${DELAY}s)\n";
+my $PORT = $ENV{PORT} || 8080;
+my $COLOR = $ENV{COLOR} || 'black';
+my $TEXT_COLOR = $ENV{TEXT_COLOR} || 'white';
+my $DELAY = $ENV{DELAY} || 0;
+
+# Reap child processes to avoid zombies
+$SIG{CHLD} = sub {
+    while ((my $child = waitpid(-1, WNOHANG)) > 0) {}
+};
+
+# Graceful shutdown
+$SIG{INT} = $SIG{TERM} = sub {
+    print "\nShutting down...\n";
+    exit(0);
+};
+
+print "Server on :$PORT (bg=$COLOR, text=$TEXT_COLOR, delay=${DELAY}s)\n";
 
 socket(my $server, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or die "socket: $!";
 setsockopt($server, SOL_SOCKET, SO_REUSEADDR, 1) or die "setsockopt: $!";
@@ -17,45 +33,96 @@ listen($server, SOMAXCONN) or die "listen: $!";
 
 while (my $addr = accept(my $client, $server)) {
     my $pid = fork();
+
     if (!defined $pid) {
-        die "fork: $!";
-    } elsif ($pid == 0) {
+        warn "fork failed: $!";
+        close($client);
+        next;
+    }
+
+    if ($pid == 0) {
+        # Child process
         close($server);
         handle_request($client);
         exit(0);
     }
+
+    # Parent process
     close($client);
 }
 
 sub handle_request {
     my ($client) = @_;
-    my $request = '';
-    my $content_length = 0;
-    my $status_code = 200;
 
-    while (<$client>) {
-        s/\r?\n$//;
-        $status_code = $1 if /^[A-Z]+\s+\/(\d{3})\s+HTTP/;
-        $content_length = $1 if /^Content-Length:\s*(\d+)/i;
-        $request .= $_ . "\n";
-        last if $_ eq '';
+    # Set alarm to prevent hanging
+    alarm(30);
+
+    eval {
+        my $request_line = '';
+        my $headers = '';
+        my $status_code = 200;
+
+        # Read request line
+        $request_line = <$client> || '';
+        $request_line =~ s/\r?\n$//;
+
+        # Extract status code from URL if specified (e.g., /500)
+        if ($request_line =~ m{^[A-Z]+\s+/(\d{3})(?:\s|$)}) {
+            $status_code = $1;
+        }
+
+        # Read headers
+        while (my $line = <$client>) {
+            $line =~ s/\r?\n$//;
+            last if $line eq '';
+            $headers .= $line . "\n";
+        }
+
+        # Sleep if delay configured
+        sleep($DELAY) if $DELAY > 0;
+
+        # Generate minimal HTML with large colored text
+        my $html = <<"HTML";
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {
+    background-color: $COLOR;
+    color: $TEXT_COLOR;
+    margin: 0;
+    padding: 20px;
+    font-family: monospace;
+    font-size: 10vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    text-align: center;
+}
+</style>
+</head>
+<body>$status_code</body>
+</html>
+HTML
+
+        # Send response
+        print $client "HTTP/1.1 $status_code OK\r\n";
+        print $client "Content-Type: text/html; charset=utf-8\r\n";
+        print $client "Content-Length: " . length($html) . "\r\n";
+        print $client "Connection: close\r\n";
+        print $client "\r\n";
+        print $client $html;
+
+        # Ensure flush
+        $client->flush();
+    };
+
+    if ($@) {
+        warn "Request handling error: $@";
     }
 
-    if ($content_length > 0) {
-        read($client, my $body, $content_length);
-        $request .= $body;
-    }
-
-    my $html = "<!DOCTYPE html><html><head><style>body{background-color:$COLOR;margin:20px;color:white}pre{white-space:pre-wrap}</style></head><body><pre>$request</pre></body></html>";
-
-    print $client "HTTP/1.1 $status_code OK\r\n";
-    print $client "Content-Type: text/html\r\n";
-    print $client "Content-Length: " . length($html) . "\r\n";
-    print $client "Connection: close\r\n";
-    print $client "\r\n";
-
-    sleep($DELAY) if $DELAY > 0;
-
-    print $client $html;
+    alarm(0);
     close($client);
 }
