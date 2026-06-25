@@ -34,6 +34,13 @@ heroku xp:create \
   --weight 50
 ```
 
+### List All Experiments
+
+```bash
+# View all configured experiments
+heroku xp:list --app myapp
+```
+
 ### Monitor Performance
 
 ```bash
@@ -232,13 +239,16 @@ Test a new feature with progressively more traffic:
 # Step 1: Start with 5%
 heroku xp:create --app prod-app --name exp-new-ui --weight 5 --tarball URL
 
-# Step 2: Monitor metrics
+# Step 2: Check that experiment is configured
+heroku xp:list --app prod-app
+
+# Step 3: Monitor metrics
 heroku xp:info --app prod-app --name exp-new-ui --period 24h
 
-# Step 3: Increase to 25% if metrics look good
+# Step 4: Increase to 25% if metrics look good
 heroku xp:update --app prod-app --name exp-new-ui --weight 25
 
-# Step 4: Full rollout - merge to main and destroy experiment
+# Step 5: Full rollout - merge to main and destroy experiment
 ```
 
 ### Beta User Testing

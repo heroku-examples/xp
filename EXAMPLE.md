@@ -74,6 +74,24 @@ Next steps:
 Note: 50% of traffic will be routed to the preview app
 ```
 
+## Step 3a: Verify Experiment Created
+
+```bash
+# List all experiments
+heroku xp:list --app bash-web
+```
+
+Output:
+```
+Experiments for bash-web:
+
+App Name                    Branch      Parent App  Version  Weight %  Path         Created  
+──────────────────────────  ──────────  ──────────  ───────  ────────  ───────────  ─────────
+bash-web-my-branch-a3f2c1  my-branch   bash-web    v1       50%       /app-setups  Today    
+
+Total experiments: 1
+```
+
 ## Step 4: Deploy Production App
 
 Deploy to regenerate Traefik config:
@@ -243,6 +261,9 @@ heroku xp:create --app bash-web --branch feature-c --header x-preview=feature-c 
 # Deploy to activate all
 git commit --allow-empty -m "Add multiple previews"
 git push heroku main
+
+# List all experiments
+heroku xp:list --app bash-web
 ```
 
 Result:
@@ -250,6 +271,17 @@ Result:
 - `/feature-b` requests → Feature B
 - `x-preview: feature-c` requests → Feature C
 - Remaining 90% → Production
+
+The `xp:list` command output:
+```
+App Name                     Branch      Parent App  Version  Weight %  Path         Created  
+───────────────────────────  ──────────  ──────────  ───────  ────────  ───────────  ─────────
+bash-web-feature-a-x7a2b4   feature-a   bash-web    v1       10%       -            Today    
+bash-web-feature-b-k9d5c1   feature-b   bash-web    v1       -         /feature-b   Today    
+bash-web-feature-c-m2n8f3   feature-c   bash-web    v1       -         -            Today    
+
+Total experiments: 3
+```
 
 ## Debugging
 
