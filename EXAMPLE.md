@@ -74,6 +74,24 @@ Next steps:
 Note: 50% of traffic will be routed to the preview app
 ```
 
+## Step 3a: Verify Experiment Created
+
+```bash
+# List all experiments
+heroku xp:list --app bash-web
+```
+
+Output:
+```
+Experiments for bash-web:
+
+Active  Branch     Route           
+──────  ─────────  ────────────────
+✓       my-branch  50% /app-setups 
+
+Total experiments: 1
+```
+
 ## Step 4: Deploy Production App
 
 Deploy to regenerate Traefik config:
@@ -243,6 +261,9 @@ heroku xp:create --app bash-web --branch feature-c --header x-preview=feature-c 
 # Deploy to activate all
 git commit --allow-empty -m "Add multiple previews"
 git push heroku main
+
+# List all experiments
+heroku xp:list --app bash-web
 ```
 
 Result:
@@ -250,6 +271,17 @@ Result:
 - `/feature-b` requests → Feature B
 - `x-preview: feature-c` requests → Feature C
 - Remaining 90% → Production
+
+The `xp:list` command output:
+```
+Active  Branch     Route                      
+──────  ─────────  ───────────────────────────
+✓       feature-a  10%                        
+✓       feature-b  /feature-b                 
+✓       feature-c  header:x-preview=feature-c 
+
+Total experiments: 3
+```
 
 ## Debugging
 

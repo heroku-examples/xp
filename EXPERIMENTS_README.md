@@ -252,36 +252,48 @@ heroku xp:create --app prod-app --name exp-load-test \
 
 ### `xp:list`
 
-List all experiments for a parent app.
+List all experiments configured in HEROKU_XP.
 
 ```bash
-heroku xp:list --app PARENT_APP [--json]
+heroku xp:list --app PARENT_APP
+```
+
+**Description:**
+
+Displays a table of all experiments for the specified parent app, showing:
+- Active status (✓ = active, ✗ = stopped)
+- Branch name
+- Unified route field (combines weight, method, path, query, and header into a single readable string)
+
+**Examples:**
+
+```bash
+# List experiments for production app
+heroku xp:list --app prod-app
+
+# List experiments with app flag shorthand
+heroku xp:list -a prod-app
 ```
 
 **Output:**
 
 ```
-═══════════════════════════════════════════════════════════
-  Experiments for prod-app
-═══════════════════════════════════════════════════════════
+Experiments for prod-app:
 
-NAME        APP NAME                STATUS    WEIGHT   CREATED
-exp-123     prod-app-exp-123-a7f3   active    10%      2h ago
-exp-456     prod-app-exp-456-b8e4   stopped   -        1d ago
+Active  Branch   Route    
+──────  ───────  ─────────
+✓       new-ui   10%      
+✓       api-v2   /api/v2  
 
-─────────────────────────────────────────────────────────
-Summary:
-  Total experiments: 2
-  Active: 1
-  Stopped: 1
-  Expired: 0
-  Total active weight: 10%
-
-Active routing methods:
-  Weight-based: 1
-  Path-based: 1
-  Query-based: 1
+Total experiments: 2
 ```
+
+**Use Cases:**
+
+- Check current experiments before creating a new one
+- Verify experiment configuration after running `xp:create`
+- Audit which experiments are consuming traffic
+- View experiment versions to track updates
 
 ### `xp:info`
 
@@ -720,6 +732,9 @@ heroku xp:create --app prod-app --name exp-new-ui \
   --weight 5 \
   --ttl 7d
 
+# Verify experiment created
+heroku xp:list --app prod-app
+
 # Deploy
 git commit --allow-empty -m "Add experiment exp-new-ui (5%)"
 git push heroku main
@@ -756,6 +771,9 @@ heroku xp:create --app prod-app --name exp-beta-features \
   --copy-parent \
   --body-json '$.user.beta == true' \
   --header x-beta=true
+
+# Check configured experiments
+heroku xp:list --app prod-app
 
 # Deploy
 git commit --allow-empty -m "Add beta features experiment"
