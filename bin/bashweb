@@ -1,4 +1,8 @@
 #!/usr/bin/env perl
+my $PORT = $ENV{PORT} || 8080;
+my $COLOR = $ENV{COLOR} || 'blue';
+my $DELAY = $ENV{DELAY} || 0;
+
 use strict;
 use warnings;
 use Socket;
