@@ -85,9 +85,9 @@ Output:
 ```
 Experiments for bash-web:
 
-App Name                    Branch      Parent App  Version  Weight %  Path         Created  
-──────────────────────────  ──────────  ──────────  ───────  ────────  ───────────  ─────────
-bash-web-my-branch-a3f2c1  my-branch   bash-web    v1       50%       /app-setups  Today    
+Active  Branch     Route           
+──────  ─────────  ────────────────
+✓       my-branch  50% /app-setups 
 
 Total experiments: 1
 ```
@@ -274,11 +274,11 @@ Result:
 
 The `xp:list` command output:
 ```
-App Name                     Branch      Parent App  Version  Weight %  Path         Created  
-───────────────────────────  ──────────  ──────────  ───────  ────────  ───────────  ─────────
-bash-web-feature-a-x7a2b4   feature-a   bash-web    v1       10%       -            Today    
-bash-web-feature-b-k9d5c1   feature-b   bash-web    v1       -         /feature-b   Today    
-bash-web-feature-c-m2n8f3   feature-c   bash-web    v1       -         -            Today    
+Active  Branch     Route                      
+──────  ─────────  ───────────────────────────
+✓       feature-a  10%                        
+✓       feature-b  /feature-b                 
+✓       feature-c  header:x-preview=feature-c 
 
 Total experiments: 3
 ```

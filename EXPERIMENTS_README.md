@@ -261,13 +261,9 @@ heroku xp:list --app PARENT_APP
 **Description:**
 
 Displays a table of all experiments for the specified parent app, showing:
-- App name of the experiment
+- Active status (✓ = active, ✗ = stopped)
 - Branch name
-- Parent app name
-- Version number
-- Traffic weight percentage (if configured)
-- Path routing (if configured)
-- Creation date (relative format)
+- Unified route field (combines weight, method, path, query, and header into a single readable string)
 
 **Examples:**
 
@@ -284,10 +280,10 @@ heroku xp:list -a prod-app
 ```
 Experiments for prod-app:
 
-App Name                    Branch       Parent App  Version  Weight %  Path              Created  
-──────────────────────────  ───────────  ──────────  ───────  ────────  ────────────────  ─────────
-prod-app-xp-new-ui-a7f3    new-ui       prod-app    v1       10%       -                 Today    
-prod-app-xp-api-v2-b8e4    api-v2       prod-app    v2       -         /api/v2           2d ago   
+Active  Branch   Route    
+──────  ───────  ─────────
+✓       new-ui   10%      
+✓       api-v2   /api/v2  
 
 Total experiments: 2
 ```

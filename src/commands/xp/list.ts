@@ -55,35 +55,25 @@ export default class List extends Command {
       // Format the data for display
       const tableData = experimentsConfig.experiments.map(exp => {
         return {
-          appName: exp.appName,
-          branch: exp.branch,
           active: exp.active !== false ? '✓' : '✗',
+          branch: exp.branch,
           route: this.formatRoute(exp),
-          createdAt: this.formatDate(exp.createdAt),
         }
       })
 
       // Display table using cli-ux
       cli.table(tableData, {
-        appName: {
-          header: 'App Name',
-          minWidth: 20,
+        active: {
+          header: 'Active',
+          minWidth: 8,
         },
         branch: {
           header: 'Branch',
           minWidth: 15,
         },
-        active: {
-          header: 'Active',
-          minWidth: 8,
-        },
         route: {
           header: 'Route',
           minWidth: 30,
-        },
-        createdAt: {
-          header: 'Created',
-          minWidth: 12,
         },
       })
 
