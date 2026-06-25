@@ -1,0 +1,83 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Socket;
+
+my $PORT = $ENV{PORT} || 8080;
+my $COLOR = $ENV{COLOR} || 'blue';
+my $DELAY = $ENV{DELAY} || 0;
+
+# Sanitize COLOR (alphanumeric, #, - only)
+$COLOR =~ s/[^a-zA-Z0-9#-]//g;
+
+# Validate DELAY is numeric
+$DELAY = 0 unless $DELAY =~ /^\d+$/;
+
+print "Server on :$PORT (color=$COLOR, delay=${DELAY}s)\n";
+
+socket(my $server, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or die "socket: $!";
+setsockopt($server, SOL_SOCKET, SO_REUSEADDR, 1) or die "setsockopt: $!";
+bind($server, sockaddr_in($PORT, INADDR_ANY)) or die "bind: $!";
+listen($server, SOMAXCONN) or die "listen: $!";
+
+while (my $addr = accept(my $client, $server)) {
+    my $pid = fork();
+    if (!defined $pid) {
+        die "fork: $!";
+    } elsif ($pid == 0) {
+        close($server);
+        handle_request($client);
+        exit(0);
+    }
+    close($client);
+}
+
+sub handle_request {
+    my ($client) = @_;
+
+    # Read and discard HTTP request headers
+    while (<$client>) {
+        last if /^\r?\n$/;
+    }
+
+    # Wait for DELAY seconds before responding
+    sleep($DELAY) if $DELAY > 0;
+
+    # Generate HTML response
+    my $html = <<"EOF";
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+    background-color: $COLOR;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: sans-serif;
+}
+h1 {
+    color: white;
+    font-size: 15vw;
+    text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<h1>$COLOR</h1>
+</body>
+</html>
+EOF
+
+    # Send HTTP response
+    print $client "HTTP/1.1 200 OK\r\n";
+    print $client "Content-Type: text/html; charset=utf-8\r\n";
+    print $client "Content-Length: " . length($html) . "\r\n";
+    print $client "Connection: close\r\n";
+    print $client "\r\n";
+    print $client $html;
+
+    close($client);
+}
