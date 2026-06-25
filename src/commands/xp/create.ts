@@ -234,7 +234,26 @@ export default class Create extends Command {
 
       // Step 14: Wait for app to boot and respond (skip if updating)
       if (!isUpdate) {
-        cli.action.start('Waiting for app to boot')
+        // Get the latest build for helpful links
+        let buildId: string | undefined
+        try {
+          const {body: builds} = await this.heroku.get(`/apps/${experimentAppName}/builds`, {
+            headers: {Accept: 'application/vnd.heroku+json; version=3'},
+          })
+          const buildsArray = builds as any[]
+          if (buildsArray && buildsArray.length > 0) {
+            buildId = buildsArray[0].id
+          }
+        } catch (error) {
+          // Continue without build ID
+        }
+
+        const buildUrl = buildId
+          ? `https://dashboard.heroku.com/apps/${experimentAppName}/activity/builds/${buildId}`
+          : `https://dashboard.heroku.com/apps/${experimentAppName}/activity`
+        const logsUrl = `https://dashboard.heroku.com/apps/${experimentAppName}/logs`
+
+        cli.action.start(`Waiting for app to boot\n  Build: ${buildUrl}\n  Logs: ${logsUrl}`)
         try {
           await this.waitForAppBoot(experimentAppName)
           cli.action.stop('✓ App is ready')
@@ -702,27 +721,40 @@ export default class Create extends Command {
   }
 
   private async waitForAppBoot(appName: string): Promise<void> {
-    const maxAttempts = 30 // 2.5 minutes
+    const maxAttempts = 60 // 5 minutes
     const pollInterval = 5000 // 5 seconds
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        // Check dyno formation
-        const {body: formation} = await this.heroku.get(`/apps/${appName}`)
-        const formationArray = formation as any[]
+        // Check releases endpoint for deployment status
+        const {body: releases} = await this.heroku.get(`/apps/${appName}/releases`, {
+          headers: {
+            'Range': 'version ..; order=desc,max=1',
+          },
+        })
+        const releasesArray = releases as any[]
 
-        const webDyno = formationArray.find((f: any) => f.type === 'web')
-        if (webDyno && webDyno.quantity > 0) {
-          // Check if app responds
-          const {body: app} = await this.heroku.get(`/apps/${appName}`)
-          const appData = app as {web_url?: string}
-          if (appData.web_url) {
-            // App is ready
-            return
+        if (releasesArray && releasesArray.length > 0) {
+          const latestRelease = releasesArray[0]
+
+          // Check if release succeeded
+          if (latestRelease.status === 'succeeded') {
+            // Verify it's not just the initial release (v1 with no slug)
+            if (latestRelease.version > 1 || latestRelease.slug) {
+              // App is ready
+              return
+            }
+          } else if (latestRelease.status === 'failed') {
+            throw new Error(`Build failed: ${latestRelease.description || 'Unknown error'}`)
           }
+          // If status is 'pending', continue polling
         }
-      } catch (error) {
-        // Continue polling
+      } catch (error: any) {
+        // If it's a known failure, propagate it
+        if (error.message && error.message.includes('Build failed')) {
+          throw error
+        }
+        // Otherwise continue polling
       }
 
       // Wait before next poll
@@ -819,7 +851,7 @@ export default class Create extends Command {
       }
 
       // Validate config size (max 32KB for Heroku config vars)
-      const configJson = JSON.stringify(config)
+      const configJson = JSON.stringify(config, null, 2)
       const configSize = Buffer.byteLength(configJson, 'utf8')
       const maxSize = 32 * 1024 // 32KB
 
