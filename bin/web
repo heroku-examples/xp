@@ -2,10 +2,16 @@
 use strict;
 use warnings;
 use Socket;
+use POSIX ":sys_wait_h";
 
 my $PORT = $ENV{PORT} || 8080;
 my $COLOR = $ENV{COLOR} || 'blue';
 my $DELAY = $ENV{DELAY} || 0;
+
+# Reap child processes to avoid zombies
+$SIG{CHLD} = sub {
+    while ((my $child = waitpid(-1, WNOHANG)) > 0) {}
+};
 
 # Sanitize COLOR (alphanumeric, #, - only)
 $COLOR =~ s/[^a-zA-Z0-9#-]//g;
