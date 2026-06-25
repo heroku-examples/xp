@@ -57,10 +57,8 @@ export default class List extends Command {
         return {
           appName: exp.appName,
           branch: exp.branch,
-          parentApp: exp.parentApp,
-          version: `v${exp.version}`,
-          weight: this.formatWeight(exp),
-          path: this.formatPath(exp),
+          active: exp.active !== false ? '✓' : '✗',
+          route: this.formatRoute(exp),
           createdAt: this.formatDate(exp.createdAt),
         }
       })
@@ -75,21 +73,13 @@ export default class List extends Command {
           header: 'Branch',
           minWidth: 15,
         },
-        parentApp: {
-          header: 'Parent App',
-          minWidth: 15,
-        },
-        version: {
-          header: 'Version',
+        active: {
+          header: 'Active',
           minWidth: 8,
         },
-        weight: {
-          header: 'Weight %',
-          minWidth: 10,
-        },
-        path: {
-          header: 'Path',
-          minWidth: 15,
+        route: {
+          header: 'Route',
+          minWidth: 30,
         },
         createdAt: {
           header: 'Created',
@@ -135,22 +125,45 @@ export default class List extends Command {
     }
   }
 
-  private formatWeight(exp: SimplifiedExperimentEntry): string {
-    if (exp.rules && exp.rules.length > 0 && exp.rules[0].weight !== undefined) {
-      return `${exp.rules[0].weight}%`
+  private formatRoute(exp: SimplifiedExperimentEntry): string {
+    if (!exp.rules || exp.rules.length === 0) {
+      return '-'
     }
-    return '-'
-  }
 
-  private formatPath(exp: SimplifiedExperimentEntry): string {
-    if (exp.rules && exp.rules.length > 0 && exp.rules[0].path) {
-      const paths = exp.rules[0].path.split(',')
-      if (paths.length > 1) {
-        return `${paths[0]} (+${paths.length - 1})`
-      }
-      return paths[0]
+    const rule = exp.rules[0]
+    const parts: string[] = []
+
+    // Add weight if specified
+    if (rule.weight !== undefined) {
+      parts.push(`${rule.weight}%`)
     }
-    return '-'
+
+    // Add method if specified and not GET (GET is default)
+    if (rule.method && rule.method !== 'GET') {
+      parts.push(rule.method)
+    }
+
+    // Add path if specified
+    if (rule.path) {
+      const paths = rule.path.split(',')
+      if (paths.length > 1) {
+        parts.push(`${paths[0]} (+${paths.length - 1})`)
+      } else {
+        parts.push(paths[0])
+      }
+    }
+
+    // Add query if specified
+    if (rule.query) {
+      parts.push(`?${rule.query}`)
+    }
+
+    // Add header if specified
+    if (rule.header) {
+      parts.push(`header:${rule.header}`)
+    }
+
+    return parts.length > 0 ? parts.join(' ') : '-'
   }
 
   private formatDate(isoDate: string): string {

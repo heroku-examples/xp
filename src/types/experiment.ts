@@ -18,6 +18,7 @@ export interface SimplifiedExperimentEntry {
   repo: string
   url: string
   rules: SimplifiedRule[]
+  active?: boolean  // Whether experiment is currently active (default: true)
   createdAt: string
   updatedAt: string
 }
