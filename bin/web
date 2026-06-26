@@ -6,8 +6,8 @@
 # Use Perl to create the HTTP server with forking for concurrency
 perl -MIO::Socket::INET -e '
 $port = $ENV{PORT} || 8080;
-$color = $ENV{COLOR} || "green";
-$delay = $ENV{DELAY} || 1;
+$color = $ENV{COLOR} || "blue";
+$delay = $ENV{DELAY} || 0;
 
 print STDERR "Starting HTTP server on port:$port color:$color delay:$delay\n";
 
