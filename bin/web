@@ -4,8 +4,8 @@
 # Usage: PORT=8080 COLOR=red DELAY=2 ./web
 
 PORT=${PORT:-8080}
-COLOR=${COLOR:-blue}
-DELAY=${DELAY:-0}
+COLOR=${COLOR:-green}
+DELAY=${DELAY:-1}
 
 echo "Starting HTTP server on port $PORT" >&2
 echo "Color: $COLOR, Delay: ${DELAY}s" >&2
