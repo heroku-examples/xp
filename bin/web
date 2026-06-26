@@ -1,53 +1,48 @@
-#!/usr/bin/env perl
-use strict;
-use warnings;
-use Socket;
+#!/bin/bash
 
-my $PORT = $ENV{PORT} || 8080;
-my $COLOR = $ENV{COLOR} || 'blue';
-my $DELAY = $ENV{DELAY} || 0;
+# web - Simple HTTP server that responds with colored HTML pages
+# Usage: PORT=8080 COLOR=red DELAY=2 ./web
 
-# Sanitize COLOR (alphanumeric, #, - only)
-$COLOR =~ s/[^a-zA-Z0-9#-]//g;
+PORT=${PORT:-8080}
+COLOR=${COLOR:-white}
+DELAY=${DELAY:-0}
 
-# Validate DELAY is numeric
-$DELAY = 0 unless $DELAY =~ /^\d+$/;
+echo "Starting HTTP server on port $PORT" >&2
+echo "Color: $COLOR, Delay: ${DELAY}s" >&2
 
-print "Server on :$PORT (color=$COLOR, delay=${DELAY}s)\n";
+# Use Perl to create the HTTP server
+perl -MIO::Socket::INET -e '
+$port = $ENV{PORT} || 8080;
+$color = $ENV{COLOR} || "white";
+$delay = $ENV{DELAY} || 0;
 
-socket(my $server, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or die "socket: $!";
-setsockopt($server, SOL_SOCKET, SO_REUSEADDR, 1) or die "setsockopt: $!";
-bind($server, sockaddr_in($PORT, INADDR_ANY)) or die "bind: $!";
-listen($server, SOMAXCONN) or die "listen: $!";
+$server = IO::Socket::INET->new(
+    LocalPort => $port,
+    Type => SOCK_STREAM,
+    Reuse => 1,
+    Listen => 10
+) or die "Cannot create socket: $!\n";
 
-while (my $addr = accept(my $client, $server)) {
-    my $pid = fork();
-    if (!defined $pid) {
-        die "fork: $!";
-    } elsif ($pid == 0) {
-        close($server);
-        handle_request($client);
-        exit(0);
-    }
-    close($client);
-}
+print STDERR "Server listening on port $port\n";
 
-sub handle_request {
-    my ($client) = @_;
-
-    # Read and discard HTTP request headers
+while ($client = $server->accept()) {
+    # Read HTTP request
     while (<$client>) {
         last if /^\r?\n$/;
     }
 
-    # Wait for DELAY seconds before responding
-    sleep($DELAY) if $DELAY > 0;
+    # Apply delay
+    sleep($delay) if $delay > 0;
 
-    # Generate HTML response
-    my $html = <<"EOF";
+    # Send HTTP response
+    print $client "HTTP/1.1 200 OK\r\n";
+    print $client "Content-Type: text/html\r\n";
+    print $client "Connection: close\r\n\r\n";
+    print $client <<"HTML";
 <!DOCTYPE html>
 <html>
 <head>
+<title>$COLOR $DELAY</title>
 <style>
 body {
     background-color: $COLOR;
@@ -73,15 +68,7 @@ h1 {
 <h1>$DELAY</h1>
 </body>
 </html>
-EOF
-
-    # Send HTTP response
-    print $client "HTTP/1.1 200 OK\r\n";
-    print $client "Content-Type: text/html; charset=utf-8\r\n";
-    print $client "Content-Length: " . length($html) . "\r\n";
-    print $client "Connection: close\r\n";
-    print $client "\r\n";
-    print $client $html;
-
-    close($client);
+HTML
+    close $client;
 }
+'
