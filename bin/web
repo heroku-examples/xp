@@ -60,7 +60,7 @@ while (1) {
 <!DOCTYPE html>
 <html>
 <head>
-<title>$color $delay</title>
+<title>$delay $color</title>
 <style>
 body {
     background-color: $color;
