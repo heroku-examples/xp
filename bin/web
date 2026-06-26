@@ -10,7 +10,7 @@ DELAY=${DELAY:-0}
 echo "Starting HTTP server on port $PORT" >&2
 echo "Color: $COLOR, Delay: ${DELAY}s" >&2
 
-# Use Perl to create the HTTP server
+# Use Perl to create the HTTP server with forking for concurrency
 perl -MIO::Socket::INET -e '
 $port = $ENV{PORT} || 8080;
 $color = $ENV{COLOR} || "white";
@@ -25,50 +25,69 @@ $server = IO::Socket::INET->new(
 
 print STDERR "Server listening on port $port\n";
 
-while ($client = $server->accept()) {
-    # Read HTTP request
-    while (<$client>) {
-        last if /^\r?\n$/;
+# Reap zombie child processes
+$SIG{CHLD} = "IGNORE";
+
+while (1) {
+    next unless $client = $server->accept();
+
+    # Fork to handle request concurrently
+    $pid = fork();
+
+    if (!defined $pid) {
+        warn "Cannot fork: $!\n";
+        close $client;
+        next;
     }
 
-    # Apply delay
-    sleep($delay) if $delay > 0;
+    if ($pid == 0) {
+        # Child process
+        $server->close();
 
-    # Send HTTP response
-    print $client "HTTP/1.1 200 OK\r\n";
-    print $client "Content-Type: text/html\r\n";
-    print $client "Connection: close\r\n\r\n";
-    print $client <<"HTML";
+        # Read HTTP request
+        while (<$client>) {
+            last if /^\r?\n$/;
+        }
+
+        # Apply delay
+        sleep($delay) if $delay > 0;
+
+        # Send HTTP response
+        print $client "HTTP/1.1 200 OK\r\n";
+        print $client "Content-Type: text/html\r\n";
+        print $client "Connection: close\r\n\r\n";
+        print $client <<"HTML";
 <!DOCTYPE html>
 <html>
 <head>
-<title>$COLOR $DELAY</title>
-<style>
-body {
-    background-color: $COLOR;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    padding: 10% 0;
-    font-family: sans-serif;
-    box-sizing: border-box;
-}
-h1 {
-    color: white;
-    font-size: 80vh;
-    line-height: 80vh;
-    margin: 0;
-    text-transform: uppercase;
-}
-</style>
+    <title>Web Server</title>
+    <style>
+        body {
+            background-color: $color;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .delay {
+            font-size: 200px;
+            font-weight: bold;
+            color: rgba(0, 0, 0, 0.8);
+        }
+    </style>
 </head>
 <body>
-<h1>$DELAY</h1>
+    <div class="delay">$delay</div>
 </body>
 </html>
 HTML
-    close $client;
+        $client->close();
+        exit 0;
+    }
+
+    # Parent process
+    $client->close();
 }
 '
