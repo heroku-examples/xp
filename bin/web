@@ -73,7 +73,7 @@ body {
 }
 h1 {
     font-size: 120vh;
-    line-height: 80vh;
+    line-height: 120vh;
     margin: 0;
     text-transform: uppercase;
     
