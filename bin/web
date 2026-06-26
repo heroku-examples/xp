@@ -72,7 +72,7 @@ body {
     overflow: hidden;
 }
 h1 {
-    font-size: 80vh;
+    font-size: 120vh;
     line-height: 80vh;
     margin: 0;
     text-transform: uppercase;
