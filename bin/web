@@ -4,7 +4,7 @@
 # Usage: PORT=8080 COLOR=red DELAY=2 ./web
 
 PORT=${PORT:-8080}
-COLOR=${COLOR:-white}
+COLOR=${COLOR:-blue}
 DELAY=${DELAY:-0}
 
 echo "Starting HTTP server on port $PORT" >&2
@@ -13,7 +13,7 @@ echo "Color: $COLOR, Delay: ${DELAY}s" >&2
 # Use Perl to create the HTTP server with forking for concurrency
 perl -MIO::Socket::INET -e '
 $port = $ENV{PORT} || 8080;
-$color = $ENV{COLOR} || "white";
+$color = $ENV{COLOR} || "blue";
 $delay = $ENV{DELAY} || 0;
 
 $server = IO::Socket::INET->new(
