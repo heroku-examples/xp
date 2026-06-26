@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# heroku purples: 240643 300b60 401075 5A1BA9 7526E3 9050E9 AD7BEE B78DEF C29EF1 D7BFF2 ECE1F9 F6F2FB
+
 # web - Simple HTTP server that responds with colored HTML pages
 # Usage: PORT=8080 COLOR=red DELAY=2 ./web
 
