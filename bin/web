@@ -55,7 +55,9 @@ while (1) {
 <!DOCTYPE html>
 <html>
 <head>
-<title>$delay $color</title>
+<title>$color $delay</title>
+<link rel="icon" type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22$color%22/%3E%3Ctext x=%2250%22 y=%2250%22 font-size=%2260%22 font-family=%22sans-serif%22 text-anchor=%22middle%22 dominant-baseline=%22central%22 fill=%22white%22 stroke=%22black%22 stroke-width=%222%22%3E$delay%3C/text%3E%3C/svg%3E" />
 <style>
 body {
     background-color: $color;

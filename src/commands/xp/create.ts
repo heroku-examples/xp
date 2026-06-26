@@ -19,6 +19,7 @@ export default class Create extends Command {
     `$ heroku xp:create --app prod-app --branch feature-xyz`,
     `$ heroku xp:create --app prod-app --branch new-ui --weight 10`,
     `$ heroku xp:create --app prod-app --branch api-v2 --path /api/v2`,
+    `$ heroku xp:create -a xp-demo-staging -b 1-green --weight 50 --path '/*' --mirror false`,
   ]
 
   static flags: any = {
@@ -53,6 +54,10 @@ export default class Create extends Command {
     }),
     stack: flags.string({
       description: 'Heroku stack',
+    }),
+    mirror: flags.string({
+      char: 'm',
+      description: 'Enable mirroring for this experiment (true or false, default: true)',
     }),
   }
 
@@ -787,7 +792,13 @@ export default class Create extends Command {
       const rule: any = {}
 
       // Mirror defaults to true if not specified
-      rule.mirror = true
+      // Parse string flag: 'false' -> false, 'true' or undefined -> true
+      if (flags.mirror !== undefined) {
+        const mirrorValue = flags.mirror.toLowerCase()
+        rule.mirror = mirrorValue !== 'false' && mirrorValue !== '0' && mirrorValue !== 'no'
+      } else {
+        rule.mirror = true
+      }
 
       if (flags.weight !== undefined) {
         rule.weight = flags.weight
