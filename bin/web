@@ -91,13 +91,10 @@ h1 {
     );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-
-    /* Slight Opacity Variation */
     opacity: 0.9;
-
-    /* Smooth, Deep Drop Shadow */
-    filter: drop-shadow(0px 15px 5px rgba(0, 0, 0, 0.2))
-            drop-shadow(0px 30px 15px rgba(0, 0, 0, 0.15));
+    mix-blend-mode: difference;
+    filter: drop-shadow(0px 15px 5px rgba(0, 0, 0, 0.4))
+            drop-shadow(0px 30px 15px rgba(0, 0, 0, 0.3));
 }
 </style>
 </head>
