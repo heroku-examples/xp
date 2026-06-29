@@ -8,8 +8,23 @@
 # Use Perl to create the HTTP server with forking for concurrency
 perl -MIO::Socket::INET -e '
 $port = $ENV{PORT} || 8080;
-$color = $ENV{COLOR} || "blue";
 $delay = $ENV{DELAY} || 0;
+
+# Map delay to Heroku purples (9=240643, 8=300b60, ... 0=F6F2FB)
+%heroku_purples = (
+    9 => "#240643",
+    8 => "#300b60",
+    7 => "#401075",
+    6 => "#5A1BA9",
+    5 => "#7526E3",
+    4 => "#9050E9",
+    3 => "#AD7BEE",
+    2 => "#B78DEF",
+    1 => "#C29EF1",
+    0 => "#D7BFF2"
+);
+
+$color = $ENV{COLOR} || $heroku_purples{$delay} || "#ECE1F9";
 
 print STDERR "Starting HTTP server on port:$port color:$color delay:$delay\n";
 
