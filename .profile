@@ -7,4 +7,5 @@
 curl --proto '=https' --tlsv1.2 -fOL https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.154.0/otelcol_0.154.0_linux_amd64.tar.gz
 tar -xvf otelcol_0.154.0_linux_amd64.tar.gz
 
-./otelcol
+./otelcol --config="yaml:exporters::debug::verbosity: normal"
+
