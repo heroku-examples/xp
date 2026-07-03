@@ -902,7 +902,8 @@ http_requests_total{route="/api"} 1000
             version: 1,
             repo: 'test/repo',
             url: 'https://test-exp-app.herokuapp.com',
-            rules: [],
+            active: true,
+            rules: [{path: '/api', method: 'GET'}],
             createdAt: '2026-01-01T00:00:00Z',
             updatedAt: '2026-01-01T00:00:00Z',
           },
@@ -931,6 +932,472 @@ http_requests_total{route="/api"} 1000
         .stdout()
         .command(['xp:watch', '-a', 'test-app', '--interval', '5'])
         .it('accepts interval flag for continuous monitoring')
+    })
+  })
+
+  describe('Active column', () => {
+    it('displays ✓ when experiment is active (active=true)', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-active',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{path: '/api', method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('shows ✓ for active experiments', ctx => {
+          expect(ctx.stdout).to.contain('✓')
+        })
+    })
+
+    it('displays ✗ when experiment is inactive (active=false)', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-inactive',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: false,
+            rules: [{path: '/api', method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('shows ✗ for inactive experiments', ctx => {
+          expect(ctx.stdout).to.contain('✗')
+        })
+    })
+
+    it('defaults to ✓ when active field is undefined', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-default',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            // active field is undefined
+            rules: [{path: '/api', method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('defaults to ✓ when active is undefined', ctx => {
+          expect(ctx.stdout).to.contain('✓')
+        })
+    })
+  })
+
+  describe('Route column', () => {
+    it('displays path from rules', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-path',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{path: '/api/users', method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('displays path route', ctx => {
+          expect(ctx.stdout).to.contain('/api/users')
+        })
+    })
+
+    it('displays query parameters in route', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-query',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{path: '/api', query: 'beta: true', method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('displays query parameter in route', ctx => {
+          expect(ctx.stdout).to.contain('?beta: true')
+        })
+    })
+
+    it('displays header in route', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-header',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{header: 'X-Beta-User: true', method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('displays header in route', ctx => {
+          expect(ctx.stdout).to.contain('[X-Beta-User: true]')
+        })
+    })
+
+    it('displays weight in route', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-weight',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{weight: 50, method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('displays weight in route', ctx => {
+          expect(ctx.stdout).to.contain('weight=50')
+        })
+    })
+
+    it('displays mirror flag in route', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-mirror',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{mirror: true, method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('displays mirror flag in route', ctx => {
+          expect(ctx.stdout).to.contain('(mirror)')
+        })
+    })
+
+    it('displays N/A when no rules defined', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-no-rules',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('displays N/A when no rules', ctx => {
+          expect(ctx.stdout).to.contain('N/A')
+        })
+    })
+
+    it('combines multiple route components', async () => {
+      const mockConfig = {
+        version: 2,
+        experiments: [
+          {
+            appName: 'test-exp-app',
+            appID: 'exp-123',
+            parentApp: 'test-app',
+            branch: 'feature-complex',
+            version: 1,
+            repo: 'test/repo',
+            url: 'https://test-exp-app.herokuapp.com',
+            active: true,
+            rules: [{path: '/api/v2', query: 'beta: true', weight: 25, method: 'GET'}],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      }
+
+      const mockConfigVars = {
+        HEROKU_XP: JSON.stringify(mockConfig),
+      }
+
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
+
+      test
+        .nock('https://api.heroku.com', api =>
+          api
+            .get('/apps/test-app/config-vars')
+            .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
+        )
+        .stdout()
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('combines multiple route components', ctx => {
+          expect(ctx.stdout).to.contain('/api/v2')
+          expect(ctx.stdout).to.contain('?beta: true')
+          expect(ctx.stdout).to.contain('weight=25')
+        })
     })
   })
 })

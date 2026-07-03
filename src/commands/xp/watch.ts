@@ -5,6 +5,8 @@ import * as http from 'http'
 import createDebug from 'debug'
 import {
   SimplifiedExperimentsConfig,
+  SimplifiedExperimentEntry,
+  SimplifiedRule,
   AnyExperimentsConfig,
   parseExperimentsConfig,
   isSimplifiedConfig,
@@ -26,6 +28,8 @@ interface ExperimentMetrics {
   [key: string]: string
   experiment: string
   branch: string
+  active: string
+  route: string
   avgResponseTime: string
   errorRate: string
   throughput: string
@@ -46,6 +50,11 @@ export default class Watch extends Command {
 
   private previousCounters: Map<string, MetricCounters> = new Map()
   private isRunning = false
+  private currentMetrics?: {
+    appName: string
+    results: ExperimentMetrics[]
+    timestamp: Date
+  }
 
   async run() {
     const {flags} = await this.parse(Watch)
@@ -69,8 +78,8 @@ export default class Watch extends Command {
 
         if (this.isRunning) {
           debug('Sleeping for 15 seconds before next update')
-          // Wait 15 seconds before next update
-          await this.sleep(15000)
+          // Wait 15 seconds before next update with countdown
+          await this.sleepWithCountdown(15000)
         }
       }
     } catch (error: any) {
@@ -95,7 +104,7 @@ export default class Watch extends Command {
 
       // Fetch parent app info to get web_url
       debug('Fetching parent app details for: %s', appName)
-      const {body: parentApp} = await this.heroku.get(`/apps/${appName}`)
+      const {body: parentApp} = await this.heroku.get<{web_url?: string}>(`/apps/${appName}`)
       const parentWebUrl = parentApp.web_url
       debug('Parent app web_url: %s', parentWebUrl)
 
@@ -107,42 +116,21 @@ export default class Watch extends Command {
       // Fetch metrics for each experiment using parent app URL
       const metricsPromises = experimentsConfig.experiments.map((exp, idx) => {
         debug('Experiment %d: appName=%s, branch=%s', idx + 1, exp.appName, exp.branch)
-        return this.fetchExperimentMetrics(exp.appName, exp.branch, parentWebUrl)
+        return this.fetchExperimentMetrics(exp, parentWebUrl)
       })
 
       const metricsResults = await Promise.all(metricsPromises)
       debug('Successfully fetched metrics for %d experiments', metricsResults.length)
 
-      // Clear screen and display
-      console.clear()
-      this.log(`\nExperiment Metrics - ${appName}`)
-      this.log(`Last updated: ${new Date().toLocaleTimeString()}\n`)
+      // Store metrics results for redrawing during countdown
+      this.currentMetrics = {
+        appName,
+        results: metricsResults,
+        timestamp: new Date(),
+      }
 
-      // Display table
-      cli.table(metricsResults, {
-        experiment: {
-          header: 'Experiment',
-          minWidth: 25,
-        },
-        branch: {
-          header: 'Branch',
-          minWidth: 20,
-        },
-        avgResponseTime: {
-          header: 'Avg Response',
-          minWidth: 15,
-        },
-        errorRate: {
-          header: 'Error %',
-          minWidth: 10,
-        },
-        throughput: {
-          header: 'Throughput',
-          minWidth: 12,
-        },
-      })
-
-      this.log('\nPress Ctrl+C to exit\n')
+      // Initial draw with full dots (15)
+      this.redrawDisplay(15)
     } catch (error: any) {
       debug('Error in fetchAndDisplayMetrics: %s', error.message)
       console.clear()
@@ -152,12 +140,19 @@ export default class Watch extends Command {
   }
 
   private async fetchExperimentMetrics(
-    appName: string,
-    branch: string,
+    exp: SimplifiedExperimentEntry,
     parentWebUrl: string
   ): Promise<ExperimentMetrics> {
     try {
+      const {appName, branch, active, rules} = exp
       debug('fetchExperimentMetrics: appName=%s, branch=%s, parentWebUrl=%s', appName, branch, parentWebUrl)
+
+      // Format active status
+      const activeStatus = active === false ? '✗' : '✓'
+
+      // Format route from rules
+      const routeStr = this.formatRoute(rules)
+
       const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
       debug('Fetching metrics from parent app URL: %s', metricsUrl)
       const metricsText = await this.fetchUrl(metricsUrl)
@@ -172,6 +167,8 @@ export default class Watch extends Command {
         return {
           experiment: appName,
           branch,
+          active: activeStatus,
+          route: routeStr,
           avgResponseTime: 'N/A',
           errorRate: 'N/A',
           throughput: 'N/A',
@@ -225,15 +222,20 @@ export default class Watch extends Command {
       return {
         experiment: appName,
         branch,
+        active: activeStatus,
+        route: routeStr,
         avgResponseTime,
         errorRate,
         throughput,
       }
     } catch (error: any) {
       debug('Error in fetchExperimentMetrics: %s', error.message)
+      const {appName, branch, active, rules} = exp
       return {
         experiment: appName,
         branch,
+        active: active === false ? '✗' : '✓',
+        route: this.formatRoute(rules),
         avgResponseTime: 'Error',
         errorRate: 'Error',
         throughput: 'Error',
@@ -429,7 +431,116 @@ export default class Watch extends Command {
     }
   }
 
+  private formatRoute(rules: SimplifiedRule[]): string {
+    if (!rules || rules.length === 0) {
+      return '-'
+    }
+
+    const rule = rules[0]
+    const parts: string[] = []
+
+    // Add weight if specified
+    if (rule.weight !== undefined) {
+      parts.push(`${rule.weight}%`)
+    }
+
+    // Add method if specified and not GET (GET is default)
+    if (rule.method && rule.method !== 'GET') {
+      parts.push(rule.method)
+    }
+
+    // Add path if specified
+    if (rule.path) {
+      const paths = rule.path.split(',')
+      if (paths.length > 1) {
+        parts.push(`${paths[0]} (+${paths.length - 1})`)
+      } else {
+        parts.push(paths[0])
+      }
+    }
+
+    // Add query if specified
+    if (rule.query) {
+      parts.push(`?${rule.query}`)
+    }
+
+    // Add header if specified
+    if (rule.header) {
+      parts.push(`header:${rule.header}`)
+    }
+
+    return parts.length > 0 ? parts.join(' ') : '-'
+  }
+
+  private redrawDisplay(dotsRemaining: number, spinnerFrame?: string) {
+    if (!this.currentMetrics) return
+
+    const {appName, results, timestamp} = this.currentMetrics
+
+    // Clear screen and redraw with updated dots
+    console.clear()
+    this.log(`\nExperiment Metrics - ${appName}`)
+    this.log(`Last updated: ${timestamp.toLocaleTimeString()} ${'.'.repeat(dotsRemaining)}\n`)
+
+    // Display table with new column order: Active, Branch, Route, Avg Response, Error %, Throughput
+    cli.table(results, {
+      active: {
+        header: 'Active',
+        minWidth: 8,
+      },
+      branch: {
+        header: 'Branch',
+        minWidth: 20,
+      },
+      route: {
+        header: 'Route',
+        minWidth: 30,
+      },
+      avgResponseTime: {
+        header: 'Avg Response',
+        minWidth: 15,
+      },
+      errorRate: {
+        header: 'Error %',
+        minWidth: 10,
+      },
+      throughput: {
+        header: 'Throughput',
+        minWidth: 12,
+      },
+    })
+
+    this.log('\nPress Ctrl+C to exit')
+
+    // Show spinner if provided
+    if (spinnerFrame) {
+      this.log(`${spinnerFrame} Waiting for next update...`)
+    }
+  }
+
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  private async sleepWithCountdown(ms: number): Promise<void> {
+    const totalSeconds = Math.floor(ms / 1000)
+    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    let spinnerIndex = 0
+
+    // Countdown: redraw display with decreasing dots every second
+    for (let remaining = totalSeconds; remaining > 0; remaining--) {
+      // Redraw the display with remaining dots and spinner
+      const spinnerFrame = spinnerFrames[spinnerIndex % spinnerFrames.length]
+      this.redrawDisplay(remaining, spinnerFrame)
+      spinnerIndex++
+
+      // Wait 1 second
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Check if we should stop early
+      if (!this.isRunning) {
+        return
+      }
+    }
   }
 }
