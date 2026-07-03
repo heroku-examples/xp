@@ -56,15 +56,42 @@ while (1) {
         # Child process
         $server->close();
 
-        # Read HTTP request
+        # Read HTTP request and capture path
+        $path = "";
         while (<$client>) {
+            if (/^GET (\S+)/) {
+                $path = $1;
+            }
             last if /^\r?\n$/;
         }
 
         # Apply delay
         sleep($delay) if $delay > 0;
 
-        # Send HTTP response
+        # Handle /demo route
+        if ($path eq "/demo") {
+            # Read demo.html file
+            open(my $fh, "<", "demo.html") or do {
+                print $client "HTTP/1.1 404 Not Found\r\n";
+                print $client "Content-Type: text/plain\r\n";
+                print $client "Connection: close\r\n\r\n";
+                print $client "demo.html not found\n";
+                $client->close();
+                exit 0;
+            };
+            local $/ = undef;
+            $html = <$fh>;
+            close($fh);
+
+            print $client "HTTP/1.1 200 OK\r\n";
+            print $client "Content-Type: text/html\r\n";
+            print $client "Connection: close\r\n\r\n";
+            print $client $html;
+            $client->close();
+            exit 0;
+        }
+
+        # Default response
         print $client "HTTP/1.1 200 OK\r\n";
         print $client "Content-Type: text/html\r\n";
         print $client "Connection: close\r\n\r\n";
@@ -93,14 +120,14 @@ h1 {
     line-height: 120vh;
     margin: 0;
     text-transform: uppercase;
-    
+
     /* Reduced Contrast Reflective Gradient */
     background: linear-gradient(
-        to bottom, 
-        #ffffff 0%, 
-        #f2f2f2 40%, 
-        #dcdcdc 48%, 
-        #e6e6e6 52%, 
+        to bottom,
+        #ffffff 0%,
+        #f2f2f2 40%,
+        #dcdcdc 48%,
+        #e6e6e6 52%,
         #ffffff 100%
     );
     -webkit-background-clip: text;
