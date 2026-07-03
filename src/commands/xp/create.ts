@@ -227,14 +227,48 @@ export default class Create extends Command {
         throw error
       }
 
-      // Step 13a: Trigger initial push
-      cli.action.start(`Triggering initial deploy for branch "${branch}"`)
+      // Step 13a: Check if app has builds, then conditionally trigger initial deploy
+      cli.action.start(`Checking app build status`)
+      let shouldDeploy = false
+      let buildsArray: any[] = []
       try {
-        await this.triggerPush(newAppData.id, branch)
-        cli.action.stop('✓ Deploy triggered')
+        const {body: builds} = await this.heroku.get(`/apps/${experimentAppName}/builds`, {
+          headers: {Accept: 'application/vnd.heroku+json; version=3'},
+        })
+        buildsArray = builds as any[]
+        shouldDeploy = !buildsArray || buildsArray.length === 0
+
+        // Debug logging
+        if (process.env.DEBUG || process.env.HEROKU_DEBUG) {
+          this.log(`[DEBUG] Build check for ${experimentAppName}:`)
+          this.log(`[DEBUG]   Builds found: ${buildsArray.length}`)
+          if (buildsArray.length > 0) {
+            this.log(`[DEBUG]   Latest build: ${buildsArray[0].id} (status: ${buildsArray[0].status})`)
+          }
+          this.log(`[DEBUG]   Should deploy: ${shouldDeploy}`)
+        }
+
+        if (shouldDeploy) {
+          cli.action.stop(`✓ No builds found, will trigger deploy`)
+        } else {
+          cli.action.stop(`✓ App already has ${buildsArray.length} build(s), skipping initial deploy`)
+        }
       } catch (error: any) {
         cli.action.stop('✗')
-        throw error
+        this.warn(`Warning: Could not check build status: ${error.message}. Will attempt deploy.`)
+        shouldDeploy = true
+      }
+
+      // Only trigger deploy if no builds exist
+      if (shouldDeploy) {
+        cli.action.start(`Triggering initial deploy for branch "${branch}"`)
+        try {
+          await this.triggerPush(newAppData.id, branch)
+          cli.action.stop('✓ Deploy triggered')
+        } catch (error: any) {
+          cli.action.stop('✗')
+          throw error
+        }
       }
 
       // Step 14: Wait for app to boot and respond (skip if updating)
