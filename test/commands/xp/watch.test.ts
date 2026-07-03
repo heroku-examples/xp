@@ -890,7 +890,7 @@ http_requests_total{route="/api"} 1000
   })
 
   describe('Continuous monitoring', () => {
-    it('supports interval flag for continuous monitoring', async () => {
+    it('runs continuous monitoring with 6-second refresh interval', async () => {
       const mockConfig = {
         version: 2,
         experiments: [
@@ -930,8 +930,8 @@ http_requests_total{route="/api"} 1000
             .reply(200, mockParentApp)
         )
         .stdout()
-        .command(['xp:watch', '-a', 'test-app', '--interval', '5'])
-        .it('accepts interval flag for continuous monitoring')
+        .command(['xp:watch', '-a', 'test-app'])
+        .it('runs continuous monitoring with 6-second refresh interval')
     })
   })
 

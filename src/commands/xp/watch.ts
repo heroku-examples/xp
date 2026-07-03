@@ -77,9 +77,9 @@ export default class Watch extends Command {
         await this.fetchAndDisplayMetrics(appName)
 
         if (this.isRunning) {
-          debug('Sleeping for 15 seconds before next update')
-          // Wait 15 seconds before next update with countdown
-          await this.sleepWithCountdown(15000)
+          debug('Sleeping for 6 seconds before next update')
+          // Wait 6 seconds before next update with countdown
+          await this.sleepWithCountdown(6000)
         }
       }
     } catch (error: any) {
@@ -129,13 +129,13 @@ export default class Watch extends Command {
         timestamp: new Date(),
       }
 
-      // Initial draw with full dots (15)
-      this.redrawDisplay(15)
+      // Initial draw with full dots (6)
+      this.redrawDisplay(6)
     } catch (error: any) {
       debug('Error in fetchAndDisplayMetrics: %s', error.message)
       console.clear()
       this.log(`\nError fetching metrics: ${error.message}`)
-      this.log('Retrying in 15 seconds...\n')
+      this.log('Retrying in 6 seconds...\n')
     }
   }
 
