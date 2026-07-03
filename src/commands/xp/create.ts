@@ -67,78 +67,30 @@ export default class Create extends Command {
     const branch = flags.branch
 
     try {
+      // Start spinner
+      cli.action.start('Creating experiment')
+
       // Step 1: Validate arguments
-      cli.action.start('Validating arguments')
       this.validateArguments(branch, flags)
-      cli.action.stop('✓')
 
       // Step 2: Get parent app attributes via Heroku API
-      cli.action.start('Fetching parent app details')
-      let parentAppData
-      try {
-        parentAppData = await this.getAppDetails(parentApp)
-        cli.action.stop(`✓ Found app: ${parentAppData.name}`)
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      const parentAppData = await this.getAppDetails(parentApp)
 
       // Step 3: Check for heroku-xp buildpack (add if missing)
-      cli.action.start('Checking for heroku-xp buildpack')
-      try {
-        await this.ensureXpBuildpack(parentApp)
-        cli.action.stop('✓ Buildpack configured')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      await this.ensureXpBuildpack(parentApp)
 
       // Step 4: Verify GitHub repo connection
-      cli.action.start('Verifying GitHub repository connection')
-      let repoData
-      try {
-        repoData = await this.verifyGitHubRepo(parentAppData.id)
-        cli.action.stop(`✓ Connected to ${repoData.repo}`)
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      const repoData = await this.verifyGitHubRepo(parentAppData.id)
 
       // Step 5: Read HEROKU_XP config var and check for existing experiment
-      cli.action.start('Reading experiment configuration')
-      let experimentsConfig: SimplifiedExperimentsConfig
-      let isUpdate = false
-      let existingExperiment: SimplifiedExperimentEntry | undefined
-      try {
-        experimentsConfig = await this.getExperimentsConfig(parentApp)
+      const experimentsConfig = await this.getExperimentsConfig(parentApp)
 
-        // Check if experiment with same parentApp+branch already exists (composite key)
-        existingExperiment = findExperimentByKey(experimentsConfig, parentApp, branch)
-        if (existingExperiment) {
-          isUpdate = true
-          cli.action.stop(`✓ Found existing experiment (will update, version ${existingExperiment.version})`)
-        } else {
-          cli.action.stop('✓ Configuration loaded (new experiment)')
-        }
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      // Check if experiment with same parentApp+branch already exists (composite key)
+      const existingExperiment = findExperimentByKey(experimentsConfig, parentApp, branch)
+      const isUpdate = !!existingExperiment
 
       // Step 7: Check if parent app is in a pipeline
-      cli.action.start('Checking pipeline configuration')
-      let pipelineCoupling
-      try {
-        pipelineCoupling = await this.getPipelineCoupling(parentAppData.id)
-        if (pipelineCoupling) {
-          cli.action.stop(`✓ Found pipeline: ${pipelineCoupling.pipeline.name}`)
-        } else {
-          cli.action.stop('✓ No pipeline')
-        }
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      const pipelineCoupling = await this.getPipelineCoupling(parentAppData.id)
 
       // Step 8: Create or reuse experiment app
       const experimentAppName = existingExperiment?.appName || this.generateAppName(branch, parentApp)
@@ -146,226 +98,122 @@ export default class Create extends Command {
 
       if (isUpdate) {
         // Reuse existing app
-        cli.action.start(`Using existing experiment app: ${experimentAppName}`)
-        try {
-          newAppData = await this.getAppDetails(experimentAppName)
-          cli.action.stop(`✓ Found existing app: ${experimentAppName}`)
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        newAppData = await this.getAppDetails(experimentAppName)
       } else {
         // Create new experiment app via apps API
-        cli.action.start(`Creating experiment app for branch "${branch}"`)
-        try {
-          newAppData = await this.createApp(
-            experimentAppName,
-            parentAppData,
-            branch,
-            flags
-          )
-          cli.action.stop(`✓ Created app: ${experimentAppName}`)
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        newAppData = await this.createApp(
+          experimentAppName,
+          parentAppData,
+          branch,
+          flags
+        )
       }
 
       // Step 9: Copy buildpacks from parent app (skip if updating)
       if (!isUpdate) {
-        cli.action.start('Configuring buildpacks')
-        try {
-          await this.copyBuildpacks(parentAppData.name, experimentAppName)
-          cli.action.stop('✓ Buildpacks configured')
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        await this.copyBuildpacks(parentAppData.name, experimentAppName)
       }
 
       // Step 10: Copy config vars from parent app
-      cli.action.start('Copying configuration variables')
-      try {
-        await this.copyConfigVars(parentAppData.name, experimentAppName, branch)
-        cli.action.stop('✓ Config vars copied')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      await this.copyConfigVars(parentAppData.name, experimentAppName, branch)
 
       // Step 11: Add to pipeline if parent app is in one (skip if updating)
       if (pipelineCoupling && !isUpdate) {
-        cli.action.start(`Adding to pipeline: ${pipelineCoupling.pipeline.name}`)
-        try {
-          await this.addToPipeline(newAppData.id, pipelineCoupling.pipeline.id, pipelineCoupling.stage)
-          cli.action.stop(`✓ Added to ${pipelineCoupling.stage} stage`)
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        await this.addToPipeline(newAppData.id, pipelineCoupling.pipeline.id, pipelineCoupling.stage)
       }
 
       // Step 12: Attach GitHub repo via kolkrabbi API (skip if updating)
       if (!isUpdate) {
-        cli.action.start('Attaching GitHub repository')
-        try {
-          await this.attachGitHubRepo(newAppData.id, repoData.repo)
-          cli.action.stop('✓ Repository attached')
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        await this.attachGitHubRepo(newAppData.id, repoData.repo)
       }
 
       // Step 13: Enable auto-deploy for the branch
-      cli.action.start(`Enabling auto-deploy for branch "${branch}"`)
-      try {
-        await this.enableAutoDeploy(newAppData.id, branch)
-        cli.action.stop('✓ Auto-deploy enabled')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      await this.enableAutoDeploy(newAppData.id, branch)
 
       // Step 13a: Check if app has builds, then conditionally trigger initial deploy
-      cli.action.start(`Checking app build status`)
       let shouldDeploy = false
-      let buildsArray: any[] = []
       try {
         const {body: builds} = await this.heroku.get(`/apps/${experimentAppName}/builds`, {
           headers: {Accept: 'application/vnd.heroku+json; version=3'},
         })
-        buildsArray = builds as any[]
+        const buildsArray = builds as any[]
         shouldDeploy = !buildsArray || buildsArray.length === 0
-
-        // Debug logging
-        if (process.env.DEBUG || process.env.HEROKU_DEBUG) {
-          this.log(`[DEBUG] Build check for ${experimentAppName}:`)
-          this.log(`[DEBUG]   Builds found: ${buildsArray.length}`)
-          if (buildsArray.length > 0) {
-            this.log(`[DEBUG]   Latest build: ${buildsArray[0].id} (status: ${buildsArray[0].status})`)
-          }
-          this.log(`[DEBUG]   Should deploy: ${shouldDeploy}`)
-        }
-
-        if (shouldDeploy) {
-          cli.action.stop(`✓ No builds found, will trigger deploy`)
-        } else {
-          cli.action.stop(`✓ App already has ${buildsArray.length} build(s), skipping initial deploy`)
-        }
       } catch (error: any) {
-        cli.action.stop('✗')
-        this.warn(`Warning: Could not check build status: ${error.message}. Will attempt deploy.`)
         shouldDeploy = true
       }
 
       // Only trigger deploy if no builds exist
       if (shouldDeploy) {
-        cli.action.start(`Triggering initial deploy for branch "${branch}"`)
-        try {
-          await this.triggerPush(newAppData.id, branch)
-          cli.action.stop('✓ Deploy triggered')
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        await this.triggerPush(newAppData.id, branch)
       }
 
       // Step 14: Wait for app to boot and respond (skip if updating)
       if (!isUpdate) {
-        // Get the latest build for helpful links
-        let buildId: string | undefined
-        try {
-          const {body: builds} = await this.heroku.get(`/apps/${experimentAppName}/builds`, {
-            headers: {Accept: 'application/vnd.heroku+json; version=3'},
-          })
-          const buildsArray = builds as any[]
-          if (buildsArray && buildsArray.length > 0) {
-            buildId = buildsArray[0].id
-          }
-        } catch (error) {
-          // Continue without build ID
-        }
-
-        const buildUrl = buildId
-          ? `https://dashboard.heroku.com/apps/${experimentAppName}/activity/builds/${buildId}`
-          : `https://dashboard.heroku.com/apps/${experimentAppName}/activity`
-        const logsUrl = `https://dashboard.heroku.com/apps/${experimentAppName}/logs`
-
-        cli.action.start(`Waiting for app to boot\n  Build: ${buildUrl}\n  Logs: ${logsUrl}`)
-        try {
-          await this.waitForAppBoot(experimentAppName)
-          cli.action.stop('✓ App is ready')
-        } catch (error: any) {
-          cli.action.stop('✗')
-          throw error
-        }
+        await this.waitForAppBoot(experimentAppName)
       }
 
       // Step 15: Update HEROKU_XP config var
-      cli.action.start(isUpdate ? 'Updating experiment configuration' : 'Adding experiment configuration')
-      try {
-        const newExperiment = this.buildSimplifiedExperimentEntry(
-          parentApp,
-          experimentAppName,
-          newAppData.id,
-          branch,
-          repoData.repo,
-          newAppData.web_url,
-          existingExperiment,
-          flags
+      const newExperiment = this.buildSimplifiedExperimentEntry(
+        parentApp,
+        experimentAppName,
+        newAppData.id,
+        branch,
+        repoData.repo,
+        newAppData.web_url,
+        existingExperiment,
+        flags
+      )
+
+      if (isUpdate) {
+        // Replace existing experiment
+        const index = experimentsConfig.experiments.findIndex(
+          exp => exp.parentApp === parentApp && exp.branch === branch
         )
-
-        if (isUpdate) {
-          // Replace existing experiment
-          const index = experimentsConfig.experiments.findIndex(
-            exp => exp.parentApp === parentApp && exp.branch === branch
-          )
-          if (index !== -1) {
-            experimentsConfig.experiments[index] = newExperiment
-          }
-        } else {
-          // Add new experiment
-          experimentsConfig.experiments.push(newExperiment)
+        if (index !== -1) {
+          experimentsConfig.experiments[index] = newExperiment
         }
-
-        await this.updateExperimentsConfig(parentApp, experimentsConfig)
-        cli.action.stop(isUpdate ? '✓ Configuration updated' : '✓ Configuration added')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
+      } else {
+        // Add new experiment
+        experimentsConfig.experiments.push(newExperiment)
       }
 
-      // Success message
+      await this.updateExperimentsConfig(parentApp, experimentsConfig)
+
+      // Stop spinner
+      cli.action.stop('')
+
+      // Display created/updated experiment in table format
       this.log('')
-      this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      this.log(`✓ Experiment ${isUpdate ? 'updated' : 'created'} successfully!`)
-      this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      this.log(`${isUpdate ? 'Updated' : 'Created'} experiment:`)
       this.log('')
-      this.log(`  App:          ${experimentAppName}`)
-      this.log(`  Branch:       ${branch}`)
-      this.log(`  Parent:       ${parentApp}`)
-      this.log(`  Version:      ${existingExperiment ? existingExperiment.version + 1 : 1}`)
-      if (flags.weight) {
-        this.log(`  Weight:       ${flags.weight}%`)
-      }
-      if (flags.path) {
-        this.log(`  Paths:        ${flags.path.join(', ')}`)
-      }
+
+      const tableData = [{
+        active: newExperiment.active !== false ? '✓' : '✗',
+        branch: newExperiment.branch,
+        route: this.formatRoute(newExperiment),
+      }]
+
+      cli.table(tableData, {
+        active: {
+          header: 'Active',
+          minWidth: 8,
+        },
+        branch: {
+          header: 'Branch',
+          minWidth: 15,
+        },
+        route: {
+          header: 'Route',
+          minWidth: 30,
+        },
+      })
+
       this.log('')
-      this.log('Next steps:')
-      this.log('')
-      this.log('  1. Deploy parent app to activate routing:')
-      this.log(`     git commit --allow-empty -m "${isUpdate ? 'Update' : 'Activate'} experiment: ${branch}"`)
-      this.log(`     git push heroku main`)
-      this.log('')
-      this.log('  2. View all experiments:')
-      this.log(`     heroku xp:list --app ${parentApp}`)
+      this.log(`heroku xp:watch --app ${parentApp}`)
       this.log('')
 
     } catch (error: any) {
-      // Stop any running spinner
-      cli.action.stop('✗')
+      cli.action.stop('')
       this.error(`Failed to create experiment: ${error.message}`)
     }
   }
@@ -880,6 +728,47 @@ export default class Create extends Command {
     }
 
     return entry
+  }
+
+  private formatRoute(exp: SimplifiedExperimentEntry): string {
+    if (!exp.rules || exp.rules.length === 0) {
+      return '-'
+    }
+
+    const rule = exp.rules[0]
+    const parts: string[] = []
+
+    // Add weight if specified
+    if (rule.weight !== undefined) {
+      parts.push(`${rule.weight}%`)
+    }
+
+    // Add method if specified and not GET (GET is default)
+    if (rule.method && rule.method !== 'GET') {
+      parts.push(rule.method)
+    }
+
+    // Add path if specified
+    if (rule.path) {
+      const paths = rule.path.split(',')
+      if (paths.length > 1) {
+        parts.push(`${paths[0]} (+${paths.length - 1})`)
+      } else {
+        parts.push(paths[0])
+      }
+    }
+
+    // Add query if specified
+    if (rule.query) {
+      parts.push(`?${rule.query}`)
+    }
+
+    // Add header if specified
+    if (rule.header) {
+      parts.push(`header:${rule.header}`)
+    }
+
+    return parts.length > 0 ? parts.join(' ') : '-'
   }
 
   private async updateExperimentsConfig(

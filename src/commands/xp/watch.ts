@@ -20,8 +20,13 @@ interface MetricCounters {
   durationSum: number
   durationCount: number
   total200: number
+  total2xx: number
+  total3xx: number
+  total4xx: number
+  total5xx: number
   totalErrors: number
   timestamp: number
+  smoothedRps?: number  // Exponential moving average of req/s
 }
 
 interface ExperimentMetrics {
@@ -33,6 +38,10 @@ interface ExperimentMetrics {
   avgResponseTime: string
   errorRate: string
   throughput: string
+  total2xx: string
+  total3xx: string
+  total4xx: string
+  total5xx: string
 }
 
 export default class Watch extends Command {
@@ -67,6 +76,7 @@ export default class Watch extends Command {
     process.on('SIGINT', () => {
       debug('Received SIGINT, stopping watch')
       this.isRunning = false
+      cli.action.stop('')
       this.log('\n\nStopping watch...')
       process.exit(0)
     })
@@ -122,6 +132,11 @@ export default class Watch extends Command {
       const metricsResults = await Promise.all(metricsPromises)
       debug('Successfully fetched metrics for %d experiments', metricsResults.length)
 
+      // Fetch control (parent app) metrics
+      debug('Fetching control metrics for parent app: %s', appName)
+      const controlMetrics = await this.fetchControlMetrics(appName, parentWebUrl)
+      metricsResults.push(controlMetrics)
+
       // Store metrics results for redrawing during countdown
       this.currentMetrics = {
         appName,
@@ -136,6 +151,131 @@ export default class Watch extends Command {
       console.clear()
       this.log(`\nError fetching metrics: ${error.message}`)
       this.log('Retrying in 6 seconds...\n')
+    }
+  }
+
+  private async fetchControlMetrics(
+    appName: string,
+    parentWebUrl: string
+  ): Promise<ExperimentMetrics> {
+    try {
+      debug('fetchControlMetrics: appName=%s, parentWebUrl=%s', appName, parentWebUrl)
+
+      const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
+      debug('Fetching metrics from parent app URL: %s', metricsUrl)
+      const metricsText = await this.fetchUrl(metricsUrl)
+      debug('Successfully fetched metrics, response length: %d bytes', metricsText.length)
+
+      // Try both router labels and combine metrics
+      const routerLabel1 = 'app@file'  // Local app instance
+      const routerLabel2 = `${appName}-control@file`  // Control router
+      debug('Parsing Prometheus metrics for control router labels: %s, %s', routerLabel1, routerLabel2)
+
+      const metrics1 = this.parsePrometheusMetrics(metricsText, routerLabel1)
+      const metrics2 = this.parsePrometheusMetrics(metricsText, routerLabel2)
+
+      // Combine metrics from both router labels
+      const metrics = this.combineMetrics(metrics1, metrics2)
+
+      if (!metrics) {
+        debug('No metrics found for control router labels: %s, %s', routerLabel1, routerLabel2)
+        return {
+          experiment: appName,
+          branch: '-',
+          active: '-',
+          route: '-',
+          avgResponseTime: '',
+          errorRate: '',
+          throughput: '',
+          total2xx: '0',
+          total3xx: '0',
+          total4xx: '0',
+          total5xx: '0',
+        }
+      }
+
+      debug('Parsed control metrics: durationSum=%f, durationCount=%f, total200=%f, totalErrors=%f',
+        metrics.durationSum, metrics.durationCount, metrics.total200, metrics.totalErrors)
+
+      // Calculate average response time (just the number, no units)
+      const avgResponseTime = metrics.durationCount > 0
+        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2)
+        : ''
+      debug('Calculated avgResponseTime: %s (durationSum=%f, durationCount=%f)',
+        avgResponseTime, metrics.durationSum, metrics.durationCount)
+
+      // Calculate error rate (just the number, no % sign)
+      const totalRequests = metrics.total200 + metrics.totalErrors
+      const errorRate = totalRequests > 0
+        ? ((metrics.totalErrors / totalRequests) * 100).toFixed(2)
+        : '0.00'
+      debug('Calculated errorRate: %s (totalErrors=%f, totalRequests=%f)',
+        errorRate, metrics.totalErrors, totalRequests)
+
+      // Calculate throughput with exponential moving average for smoothing
+      let throughput = ''
+      const key = `${appName}-control`
+      const previous = this.previousCounters.get(key)
+
+      if (previous) {
+        const timeDiff = (metrics.timestamp - previous.timestamp) / 1000 // seconds
+        const requestDiff = (metrics.total2xx - previous.total2xx) +
+                           (metrics.total3xx - previous.total3xx) +
+                           (metrics.total4xx - previous.total4xx) +
+                           (metrics.total5xx - previous.total5xx)
+
+        debug('Calculating throughput: requestDiff=%f, timeDiff=%fs',
+          requestDiff, timeDiff)
+
+        if (timeDiff > 0) {
+          const instantRps = requestDiff / timeDiff
+          // Use exponential moving average (EMA) with alpha=0.3 for smoothing
+          // smoothedRps = alpha * instantRps + (1 - alpha) * previousSmoothedRps
+          const alpha = 0.3
+          const smoothedRps = previous.smoothedRps !== undefined
+            ? alpha * instantRps + (1 - alpha) * previous.smoothedRps
+            : instantRps
+
+          metrics.smoothedRps = smoothedRps
+          throughput = smoothedRps >= 0 ? smoothedRps.toFixed(2) : '0.00'
+          debug('Calculated throughput: instant=%f, smoothed=%s', instantRps, throughput)
+        }
+      } else {
+        debug('No previous counters found for %s, throughput will be blank', key)
+      }
+
+      // Store current counters for next iteration
+      this.previousCounters.set(key, metrics)
+      debug('Stored current counters for next iteration')
+
+      return {
+        experiment: appName,
+        branch: '-',
+        active: '-',
+        route: '-',
+        avgResponseTime,
+        errorRate,
+        throughput,
+        total2xx: metrics.total2xx.toString(),
+        total3xx: metrics.total3xx.toString(),
+        total4xx: metrics.total4xx.toString(),
+        total5xx: metrics.total5xx.toString(),
+      }
+    } catch (error: any) {
+      debug('Error in fetchControlMetrics: %s', error.message)
+      return {
+        experiment: appName,
+        branch: '-',
+        active: '-',
+        route: '-',
+        avgResponseTime: '',
+        errorRate: '',
+        throughput: '',
+        total2xx: '0',
+        total3xx: '0',
+        total4xx: '0',
+        total5xx: '0',
+      }
     }
   }
 
@@ -169,50 +309,64 @@ export default class Watch extends Command {
           branch,
           active: activeStatus,
           route: routeStr,
-          avgResponseTime: 'N/A',
-          errorRate: 'N/A',
-          throughput: 'N/A',
+          avgResponseTime: '',
+          errorRate: '',
+          throughput: '',
+          total2xx: '0',
+          total3xx: '0',
+          total4xx: '0',
+          total5xx: '0',
         }
       }
 
       debug('Parsed metrics: durationSum=%f, durationCount=%f, total200=%f, totalErrors=%f',
         metrics.durationSum, metrics.durationCount, metrics.total200, metrics.totalErrors)
 
-      // Calculate average response time
+      // Calculate average response time (just the number, no units)
       const avgResponseTime = metrics.durationCount > 0
-        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2) + ' ms'
-        : 'N/A'
+        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2)
+        : ''
       debug('Calculated avgResponseTime: %s (durationSum=%f, durationCount=%f)',
         avgResponseTime, metrics.durationSum, metrics.durationCount)
 
-      // Calculate error rate
+      // Calculate error rate (just the number, no % sign)
       const totalRequests = metrics.total200 + metrics.totalErrors
       const errorRate = totalRequests > 0
-        ? ((metrics.totalErrors / totalRequests) * 100).toFixed(2) + '%'
-        : '0.00%'
+        ? ((metrics.totalErrors / totalRequests) * 100).toFixed(2)
+        : '0.00'
       debug('Calculated errorRate: %s (totalErrors=%f, totalRequests=%f)',
         errorRate, metrics.totalErrors, totalRequests)
 
-      // Calculate throughput (requests per second)
-      let throughput = 'N/A'
+      // Calculate throughput with exponential moving average for smoothing
+      let throughput = ''
       const key = appName
       const previous = this.previousCounters.get(key)
 
       if (previous) {
         const timeDiff = (metrics.timestamp - previous.timestamp) / 1000 // seconds
-        const requestDiff = (metrics.total200 - previous.total200) +
-                           (metrics.totalErrors - previous.totalErrors)
+        const requestDiff = (metrics.total2xx - previous.total2xx) +
+                           (metrics.total3xx - previous.total3xx) +
+                           (metrics.total4xx - previous.total4xx) +
+                           (metrics.total5xx - previous.total5xx)
 
         debug('Calculating throughput: requestDiff=%f, timeDiff=%fs',
           requestDiff, timeDiff)
 
         if (timeDiff > 0) {
-          const rps = requestDiff / timeDiff
-          throughput = rps >= 0 ? rps.toFixed(2) + ' req/s' : '0.00 req/s'
-          debug('Calculated throughput: %s (rps=%f)', throughput, rps)
+          const instantRps = requestDiff / timeDiff
+          // Use exponential moving average (EMA) with alpha=0.3 for smoothing
+          // smoothedRps = alpha * instantRps + (1 - alpha) * previousSmoothedRps
+          const alpha = 0.3
+          const smoothedRps = previous.smoothedRps !== undefined
+            ? alpha * instantRps + (1 - alpha) * previous.smoothedRps
+            : instantRps
+
+          metrics.smoothedRps = smoothedRps
+          throughput = smoothedRps >= 0 ? smoothedRps.toFixed(2) : '0.00'
+          debug('Calculated throughput: instant=%f, smoothed=%s', instantRps, throughput)
         }
       } else {
-        debug('No previous counters found for %s, throughput will be N/A', key)
+        debug('No previous counters found for %s, throughput will be blank', key)
       }
 
       // Store current counters for next iteration
@@ -227,6 +381,10 @@ export default class Watch extends Command {
         avgResponseTime,
         errorRate,
         throughput,
+        total2xx: metrics.total2xx.toString(),
+        total3xx: metrics.total3xx.toString(),
+        total4xx: metrics.total4xx.toString(),
+        total5xx: metrics.total5xx.toString(),
       }
     } catch (error: any) {
       debug('Error in fetchExperimentMetrics: %s', error.message)
@@ -239,7 +397,37 @@ export default class Watch extends Command {
         avgResponseTime: 'Error',
         errorRate: 'Error',
         throughput: 'Error',
+        total2xx: '0',
+        total3xx: '0',
+        total4xx: '0',
+        total5xx: '0',
       }
+    }
+  }
+
+  private combineMetrics(metrics1: MetricCounters | null, metrics2: MetricCounters | null): MetricCounters | null {
+    if (!metrics1 && !metrics2) {
+      return null
+    }
+
+    if (!metrics1) return metrics2
+    if (!metrics2) return metrics1
+
+    // Combine metrics by summing counters and averaging durations
+    const totalRequests = (metrics1.total2xx + metrics1.total3xx + metrics1.total4xx + metrics1.total5xx) +
+                         (metrics2.total2xx + metrics2.total3xx + metrics2.total4xx + metrics2.total5xx)
+
+    return {
+      durationSum: metrics1.durationSum + metrics2.durationSum,
+      durationCount: metrics1.durationCount + metrics2.durationCount,
+      total200: metrics1.total200 + metrics2.total200,
+      total2xx: metrics1.total2xx + metrics2.total2xx,
+      total3xx: metrics1.total3xx + metrics2.total3xx,
+      total4xx: metrics1.total4xx + metrics2.total4xx,
+      total5xx: metrics1.total5xx + metrics2.total5xx,
+      totalErrors: metrics1.totalErrors + metrics2.totalErrors,
+      timestamp: Math.max(metrics1.timestamp, metrics2.timestamp),
+      smoothedRps: undefined, // Will be calculated fresh
     }
   }
 
@@ -252,6 +440,10 @@ export default class Watch extends Command {
       durationSum: 0,
       durationCount: 0,
       total200: 0,
+      total2xx: 0,
+      total3xx: 0,
+      total4xx: 0,
+      total5xx: 0,
       totalErrors: 0,
       timestamp: Date.now(),
     }
@@ -303,9 +495,23 @@ export default class Watch extends Command {
         if (labels.code === '200') {
           metrics.total200 = value
           debug('Found total200: %f', value)
-        } else if (labels.code && (labels.code.startsWith('4') || labels.code.startsWith('5'))) {
+        }
+
+        // Categorize by status code family
+        if (labels.code && labels.code.startsWith('2')) {
+          metrics.total2xx = (metrics.total2xx || 0) + value
+          debug('Found 2xx (code=%s): %f, total2xx now: %f', labels.code, value, metrics.total2xx)
+        } else if (labels.code && labels.code.startsWith('3')) {
+          metrics.total3xx = (metrics.total3xx || 0) + value
+          debug('Found 3xx (code=%s): %f, total3xx now: %f', labels.code, value, metrics.total3xx)
+        } else if (labels.code && labels.code.startsWith('4')) {
+          metrics.total4xx = (metrics.total4xx || 0) + value
           metrics.totalErrors = (metrics.totalErrors || 0) + value
-          debug('Found error (code=%s): %f, totalErrors now: %f', labels.code, value, metrics.totalErrors)
+          debug('Found 4xx (code=%s): %f, total4xx now: %f', labels.code, value, metrics.total4xx)
+        } else if (labels.code && labels.code.startsWith('5')) {
+          metrics.total5xx = (metrics.total5xx || 0) + value
+          metrics.totalErrors = (metrics.totalErrors || 0) + value
+          debug('Found 5xx (code=%s): %f, total5xx now: %f', labels.code, value, metrics.total5xx)
         }
       }
     }
@@ -319,8 +525,8 @@ export default class Watch extends Command {
       return null
     }
 
-    debug('Successfully parsed metrics: durationSum=%f, durationCount=%f, total200=%f, totalErrors=%f',
-      metrics.durationSum, metrics.durationCount, metrics.total200, metrics.totalErrors)
+    debug('Successfully parsed metrics: durationSum=%f, durationCount=%f, total200=%f, total2xx=%f, total3xx=%f, total4xx=%f, total5xx=%f, totalErrors=%f',
+      metrics.durationSum, metrics.durationCount, metrics.total200, metrics.total2xx, metrics.total3xx, metrics.total4xx, metrics.total5xx, metrics.totalErrors)
     return metrics as MetricCounters
   }
 
@@ -472,7 +678,7 @@ export default class Watch extends Command {
     return parts.length > 0 ? parts.join(' ') : '-'
   }
 
-  private redrawDisplay(dotsRemaining: number, spinnerFrame?: string) {
+  private redrawDisplay(dotsRemaining: number) {
     if (!this.currentMetrics) return
 
     const {appName, results, timestamp} = this.currentMetrics
@@ -482,7 +688,7 @@ export default class Watch extends Command {
     this.log(`\nExperiment Metrics - ${appName}`)
     this.log(`Last updated: ${timestamp.toLocaleTimeString()} ${'.'.repeat(dotsRemaining)}\n`)
 
-    // Display table with new column order: Active, Branch, Route, Avg Response, Error %, Throughput
+    // Display table with columns: Active, Branch, Route, Avg ms, Error %, Req/s, 2xx, 3xx, 4xx, 5xx
     cli.table(results, {
       active: {
         header: 'Active',
@@ -497,25 +703,36 @@ export default class Watch extends Command {
         minWidth: 30,
       },
       avgResponseTime: {
-        header: 'Avg Response',
-        minWidth: 15,
+        header: 'Avg ms',
+        minWidth: 10,
       },
       errorRate: {
         header: 'Error %',
         minWidth: 10,
       },
       throughput: {
-        header: 'Throughput',
-        minWidth: 12,
+        header: 'Req/s',
+        minWidth: 10,
+      },
+      total2xx: {
+        header: '2xx',
+        minWidth: 8,
+      },
+      total3xx: {
+        header: '3xx',
+        minWidth: 8,
+      },
+      total4xx: {
+        header: '4xx',
+        minWidth: 8,
+      },
+      total5xx: {
+        header: '5xx',
+        minWidth: 8,
       },
     })
 
-    this.log('\nPress Ctrl+C to exit')
-
-    // Show spinner if provided
-    if (spinnerFrame) {
-      this.log(`${spinnerFrame}`)
-    }
+    this.log('')
   }
 
   private sleep(ms: number): Promise<void> {
@@ -524,23 +741,26 @@ export default class Watch extends Command {
 
   private async sleepWithCountdown(ms: number): Promise<void> {
     const totalSeconds = Math.floor(ms / 1000)
-    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-    let spinnerIndex = 0
+
+    // Use cli.action spinner with "Press Ctrl+C to exit" text
+    cli.action.start('Press Ctrl+C to exit')
 
     // Countdown: redraw display with decreasing dots every second
     for (let remaining = totalSeconds; remaining > 0; remaining--) {
-      // Redraw the display with remaining dots and spinner
-      const spinnerFrame = spinnerFrames[spinnerIndex % spinnerFrames.length]
-      this.redrawDisplay(remaining, spinnerFrame)
-      spinnerIndex++
+      // Redraw the display with remaining dots
+      this.redrawDisplay(remaining)
 
       // Wait 1 second
       await new Promise(resolve => setTimeout(resolve, 1000))
 
       // Check if we should stop early
       if (!this.isRunning) {
+        cli.action.stop('')
         return
       }
     }
+
+    // Stop spinner without showing "done" message
+    cli.action.stop('')
   }
 }
