@@ -1,17 +1,93 @@
 import {expect, test} from '@oclif/test'
 import * as sinon from 'sinon'
+import * as http from 'http'
+import * as https from 'https'
+import {EventEmitter} from 'events'
 import Watch from '../../../src/commands/xp/watch'
 
 describe('xp:watch', () => {
   let sandbox: sinon.SinonSandbox
+  let httpsStub: sinon.SinonStub | undefined
+
+  // Map to store response data for different URLs
+  let responseMap: Map<string, {data: string; statusCode: number}>
+
+  before(() => {
+    // Check if https.get is already a stub (from nock or previous tests)
+    const httpsGet = (https as any).get
+    if (httpsGet && httpsGet.isSinonProxy) {
+      // Already stubbed, just use it
+      httpsStub = httpsGet as sinon.SinonStub
+    } else {
+      try {
+        // Create a new stub
+        httpsStub = sinon.stub(https, 'get')
+      } catch (error) {
+        // If stubbing fails, https.get might be non-configurable
+        // We'll handle this in beforeEach
+      }
+    }
+  })
+
+  after(() => {
+    // Restore the stub after all tests if we created it
+    if (httpsStub && httpsStub.restore) {
+      try {
+        httpsStub.restore()
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+  })
 
   beforeEach(() => {
     sandbox = sinon.createSandbox()
+    responseMap = new Map()
+
+    // If we don't have a stub yet, try to create one now
+    if (!httpsStub) {
+      const httpsGet = (https as any).get
+      if (httpsGet && httpsGet.isSinonProxy) {
+        httpsStub = httpsGet as sinon.SinonStub
+      }
+    }
+
+    // Configure the stub behavior for each test
+    if (httpsStub) {
+      httpsStub.callsFake((requestUrl: any, callback: any) => {
+        const url = typeof requestUrl === 'string' ? requestUrl : requestUrl.href
+        const response = responseMap.get(url) || {data: '', statusCode: 200}
+
+        const responseStream = new EventEmitter() as any
+        responseStream.statusCode = response.statusCode
+        responseStream.headers = {}
+
+        // Call the callback with our mock response
+        callback(responseStream)
+
+        // Simulate data and end events
+        setImmediate(() => {
+          responseStream.emit('data', response.data)
+          responseStream.emit('end')
+        })
+
+        // Return a mock request object
+        const req = new EventEmitter()
+        return req as any
+      })
+    }
   })
 
   afterEach(() => {
     sandbox.restore()
+    responseMap.clear()
   })
+
+  // Helper function to register a URL with response data
+  function mockHttpRequest(url: string, responseData: string, statusCode = 200) {
+    responseMap.set(url, {data: responseData, statusCode})
+    return httpsStub
+  }
 
   describe('Basic functionality', () => {
     it('accepts -a/--app flag', async () => {
@@ -86,7 +162,7 @@ describe('xp:watch', () => {
         .it('fetches and parses HEROKU_XP config')
     })
 
-    it('constructs correct metrics URLs', async () => {
+    it('fetches metrics from parent app URL, not experiment URL', async () => {
       const mockConfig = {
         version: 2,
         experiments: [
@@ -109,21 +185,32 @@ describe('xp:watch', () => {
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => '',
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      // Mock HTTP request to fetch metrics
+      const httpsStub = mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
-        .it('constructs metrics URL from app URL')
+        .it('fetches metrics from parent app URL, not experiment URL', () => {
+          // Verify that HTTP request was made to parent app URL
+          if (httpsStub) {
+            expect(httpsStub.calledOnce).to.be.true
+            const callUrl = httpsStub.firstCall.args[0]
+            expect(callUrl).to.equal('https://test-app.herokuapp.com/.dyno-proxy/metrics/')
+          }
+        })
     })
   })
 
@@ -160,17 +247,20 @@ http_request_duration_seconds_count{route="/api/orders"} 25
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -207,17 +297,20 @@ http_requests_total{route="/api/orders"} 750
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -252,17 +345,20 @@ http_request_duration_seconds_count{route="/api/users",method="GET",status="200"
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -296,17 +392,20 @@ http_request_duration_seconds_count{route="/api/users",method="GET",status="200"
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -345,17 +444,20 @@ http_request_duration_seconds_count{route="/api"} 100
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -392,17 +494,20 @@ http_requests_total{route="/api",status="500"} 100
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -439,17 +544,20 @@ http_requests_total{route="/api"} 1000
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -496,14 +604,30 @@ http_requests_total{route="/api"} 1000
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.rejects(new Error('Network error'))
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      // Override the stub for this specific test to throw an error
+      if (httpsStub) {
+        httpsStub.reset()
+        httpsStub.callsFake((url: any, callback: any) => {
+          const req = new EventEmitter()
+          setImmediate(() => {
+            req.emit('error', new Error('Network error'))
+          })
+          return req as any
+        })
+      }
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -538,17 +662,20 @@ http_request_duration_seconds_sum{invalid
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => malformedMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', malformedMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -633,17 +760,20 @@ http_requests_total{route="/api"} 1000
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -677,17 +807,20 @@ http_requests_total{route="/api"} 1000
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -735,17 +868,20 @@ http_requests_total{route="/api"} 1000
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => prometheusMetrics,
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app'])
@@ -777,17 +913,20 @@ http_requests_total{route="/api"} 1000
         HEROKU_XP: JSON.stringify(mockConfig),
       }
 
-      const fetchStub = sandbox.stub(global, 'fetch')
-      fetchStub.resolves({
-        ok: true,
-        text: async () => '',
-      } as Response)
+      const mockParentApp = {
+        name: 'test-app',
+        web_url: 'https://test-app.herokuapp.com',
+      }
+
+      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', '')
 
       test
         .nock('https://api.heroku.com', api =>
           api
             .get('/apps/test-app/config-vars')
             .reply(200, mockConfigVars)
+            .get('/apps/test-app')
+            .reply(200, mockParentApp)
         )
         .stdout()
         .command(['xp:watch', '-a', 'test-app', '--interval', '5'])

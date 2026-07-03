@@ -93,11 +93,21 @@ export default class Watch extends Command {
         return
       }
 
-      debug('Fetching metrics for %d experiments', experimentsConfig.experiments.length)
-      // Fetch metrics for each experiment
+      // Fetch parent app info to get web_url
+      debug('Fetching parent app details for: %s', appName)
+      const {body: parentApp} = await this.heroku.get(`/apps/${appName}`)
+      const parentWebUrl = parentApp.web_url
+      debug('Parent app web_url: %s', parentWebUrl)
+
+      if (!parentWebUrl) {
+        throw new Error(`Parent app ${appName} has no web_url`)
+      }
+
+      debug('Fetching metrics for %d experiments using parent URL: %s', experimentsConfig.experiments.length, parentWebUrl)
+      // Fetch metrics for each experiment using parent app URL
       const metricsPromises = experimentsConfig.experiments.map((exp, idx) => {
-        debug('Experiment %d: appName=%s, branch=%s, url=%s', idx + 1, exp.appName, exp.branch, exp.url)
-        return this.fetchExperimentMetrics(exp.appName, exp.branch, exp.url)
+        debug('Experiment %d: appName=%s, branch=%s', idx + 1, exp.appName, exp.branch)
+        return this.fetchExperimentMetrics(exp.appName, exp.branch, parentWebUrl)
       })
 
       const metricsResults = await Promise.all(metricsPromises)
@@ -144,12 +154,12 @@ export default class Watch extends Command {
   private async fetchExperimentMetrics(
     appName: string,
     branch: string,
-    baseUrl: string
+    parentWebUrl: string
   ): Promise<ExperimentMetrics> {
     try {
-      debug('fetchExperimentMetrics: appName=%s, branch=%s, baseUrl=%s', appName, branch, baseUrl)
-      const metricsUrl = `${baseUrl}/.dyno-proxy/metrics/`
-      debug('Fetching metrics from URL: %s', metricsUrl)
+      debug('fetchExperimentMetrics: appName=%s, branch=%s, parentWebUrl=%s', appName, branch, parentWebUrl)
+      const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
+      debug('Fetching metrics from parent app URL: %s', metricsUrl)
       const metricsText = await this.fetchUrl(metricsUrl)
       debug('Successfully fetched metrics, response length: %d bytes', metricsText.length)
 
