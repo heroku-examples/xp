@@ -1,0 +1,7 @@
+{
+  "extension": ["ts"],
+  "spec": "test/**/*.test.ts",
+  "require": "test/register.js",
+  "recursive": true,
+  "timeout": 5000
+}
