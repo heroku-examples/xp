@@ -514,7 +514,7 @@ export default class Watch extends Command {
 
     // Show spinner if provided
     if (spinnerFrame) {
-      this.log(`${spinnerFrame} Waiting for next update...`)
+      this.log(`${spinnerFrame}`)
     }
   }
 
