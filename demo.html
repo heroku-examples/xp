@@ -58,16 +58,8 @@
         }
 
         #controls input[type="range"] {
-            width: 150px;
+            width: 120px;
             cursor: pointer;
-        }
-
-        #delayValue {
-            color: #333;
-            font-weight: 600;
-            min-width: 25px;
-            display: inline-block;
-            text-align: right;
         }
 
         #controls button {
@@ -139,8 +131,8 @@
         <label>URL:</label>
         <input type="text" id="urlInput" placeholder="https://example.com">
         <label>Delay (s):</label>
-        <input type="range" id="delaySlider" value="5" min="1" max="30" step="1">
-        <span id="delayValue">5</span>s
+        <input type="range" id="delaySlider" value="5" min="1" max="5" step="1">
+        <input type="number" id="delayInput" value="5" min="1" max="5" step="1">
         <button id="startBtn">Start</button>
         <button id="stopBtn">Stop</button>
         <button id="resetBtn">Reset</button>
@@ -157,16 +149,20 @@
 
         const urlInput = document.getElementById('urlInput');
         const delaySlider = document.getElementById('delaySlider');
-        const delayValue = document.getElementById('delayValue');
+        const delayInput = document.getElementById('delayInput');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const resetBtn = document.getElementById('resetBtn');
         const container = document.getElementById('container');
         const status = document.getElementById('status');
 
-        // Update delay value display when slider changes
+        // Sync slider and input
         delaySlider.addEventListener('input', () => {
-            delayValue.textContent = delaySlider.value;
+            delayInput.value = delaySlider.value;
+        });
+
+        delayInput.addEventListener('input', () => {
+            delaySlider.value = delayInput.value;
         });
 
         // Parse URL parameters
@@ -175,8 +171,9 @@
             urlInput.value = params.get('url');
         }
         if (params.has('delay')) {
-            delaySlider.value = params.get('delay');
-            delayValue.textContent = params.get('delay');
+            const delay = params.get('delay');
+            delaySlider.value = delay;
+            delayInput.value = delay;
         }
 
         // Auto-start if URL is provided
@@ -260,7 +257,7 @@
             if (isRunning) return;
 
             const url = urlInput.value.trim();
-            const delay = parseInt(delaySlider.value) * 1000;
+            const delay = parseInt(delayInput.value) * 1000;
 
             if (!url) {
                 updateStatus('Please enter a URL');
@@ -276,6 +273,7 @@
             startBtn.disabled = true;
             urlInput.disabled = true;
             delaySlider.disabled = true;
+            delayInput.disabled = true;
 
             // Add first frame immediately
             addFrame();
@@ -296,6 +294,7 @@
             startBtn.disabled = false;
             urlInput.disabled = false;
             delaySlider.disabled = false;
+            delayInput.disabled = false;
 
             updateStatus('Stopped');
         }
@@ -324,8 +323,9 @@
                 urlInput.value = params.get('url');
             }
             if (params.has('delay')) {
-                delaySlider.value = params.get('delay');
-                delayValue.textContent = params.get('delay');
+                const delay = params.get('delay');
+                delaySlider.value = delay;
+                delayInput.value = delay;
             }
         });
 
