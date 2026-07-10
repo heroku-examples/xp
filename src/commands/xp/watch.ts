@@ -500,7 +500,7 @@ export default class Watch extends Command {
       } else if (metricName === 'traefik_service_request_duration_seconds_count') {
         metrics.durationCount = (metrics.durationCount || 0) + value
         debug('Found durationCount: %f, total now: %f', value, metrics.durationCount)
-      } else if (metricName === 'traefik_router_requests_total') {
+      } else if (metricName === 'traefik_service_requests_total') {
         if (labels.code === '200') {
           metrics.total200 = (metrics.total200 || 0) + value
           debug('Found total200: %f, total now: %f', value, metrics.total200)
