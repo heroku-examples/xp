@@ -480,7 +480,11 @@ export default class Watch extends Command {
       // Parse labels
       const labels = this.parseLabels(labelsStr)
 
-      if (labels.router !== routerLabel) {
+      // For service metrics, check the 'service' label; for router metrics, check 'router' label
+      // Service label matches router label directly (both use -experiment@file suffix)
+      const isMatch = labels.router === routerLabel || labels.service === routerLabel
+
+      if (!isMatch) {
         skippedWrongRouter++
         continue
       }
@@ -489,10 +493,11 @@ export default class Watch extends Command {
       debug('Matched metric line: %s=%f, labels=%s', metricName, value, labelsStr)
 
       // Extract relevant metrics
-      if (metricName === 'traefik_router_request_duration_seconds_sum') {
+      // Use traefik_service metrics instead of traefik_router to get actual backend timing
+      if (metricName === 'traefik_service_request_duration_seconds_sum') {
         metrics.durationSum = (metrics.durationSum || 0) + value
         debug('Found durationSum: %f, total now: %f', value, metrics.durationSum)
-      } else if (metricName === 'traefik_router_request_duration_seconds_count') {
+      } else if (metricName === 'traefik_service_request_duration_seconds_count') {
         metrics.durationCount = (metrics.durationCount || 0) + value
         debug('Found durationCount: %f, total now: %f', value, metrics.durationCount)
       } else if (metricName === 'traefik_router_requests_total') {
