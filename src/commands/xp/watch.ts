@@ -490,15 +490,15 @@ export default class Watch extends Command {
 
       // Extract relevant metrics
       if (metricName === 'traefik_router_request_duration_seconds_sum') {
-        metrics.durationSum = value
-        debug('Found durationSum: %f', value)
+        metrics.durationSum = (metrics.durationSum || 0) + value
+        debug('Found durationSum: %f, total now: %f', value, metrics.durationSum)
       } else if (metricName === 'traefik_router_request_duration_seconds_count') {
-        metrics.durationCount = value
-        debug('Found durationCount: %f', value)
+        metrics.durationCount = (metrics.durationCount || 0) + value
+        debug('Found durationCount: %f, total now: %f', value, metrics.durationCount)
       } else if (metricName === 'traefik_router_requests_total') {
         if (labels.code === '200') {
-          metrics.total200 = value
-          debug('Found total200: %f', value)
+          metrics.total200 = (metrics.total200 || 0) + value
+          debug('Found total200: %f, total now: %f', value, metrics.total200)
         }
 
         // Categorize by status code family
