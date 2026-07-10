@@ -181,9 +181,9 @@ export default class Watch extends Command {
         debug('No metrics found for control router labels: %s, %s', routerLabel1, routerLabel2)
         return {
           experiment: appName,
-          branch: '-',
-          active: '-',
-          route: '-',
+          branch: '',
+          active: '',
+          route: 'baseline',
           avgResponseTime: '',
           errorRate: '',
           throughput: '',
@@ -250,9 +250,9 @@ export default class Watch extends Command {
 
       return {
         experiment: appName,
-        branch: '-',
-        active: '-',
-        route: '-',
+        branch: '',
+        active: '',
+        route: 'baseline',
         avgResponseTime,
         errorRate,
         throughput,
@@ -265,9 +265,9 @@ export default class Watch extends Command {
       debug('Error in fetchControlMetrics: %s', error.message)
       return {
         experiment: appName,
-        branch: '-',
-        active: '-',
-        route: '-',
+        branch: '',
+        active: '',
+        route: 'baseline',
         avgResponseTime: '',
         errorRate: '',
         throughput: '',
