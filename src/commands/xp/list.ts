@@ -54,8 +54,11 @@ export default class List extends Command {
 
       // Format the data for display
       const tableData = experimentsConfig.experiments.map(exp => {
+        // Check if experiment is in mirror mode
+        const isMirror = exp.rules && exp.rules.length > 0 && exp.rules[0].mirror === true
+        const mode = isMirror ? 'mirror' : 'live'
         return {
-          active: exp.active !== false ? '✓' : '✗',
+          active: exp.active !== false ? `✓ ${mode}` : '✗',
           branch: exp.branch,
           route: this.formatRoute(exp),
         }

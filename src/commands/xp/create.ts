@@ -10,6 +10,7 @@ import {
   migrateToSimplified,
   createEmptySimplifiedConfig,
   findExperimentByKey,
+  validateWeights,
 } from '../../types/experiment'
 
 export default class Create extends Command {
@@ -187,8 +188,11 @@ export default class Create extends Command {
       this.log(`${isUpdate ? 'Updated' : 'Created'} experiment:`)
       this.log('')
 
+      // Check if experiment is in mirror mode
+      const isMirror = newExperiment.rules && newExperiment.rules.length > 0 && newExperiment.rules[0].mirror === true
+      const mode = isMirror ? 'mirror' : 'live'
       const tableData = [{
-        active: newExperiment.active !== false ? '✓' : '✗',
+        active: newExperiment.active !== false ? `✓ ${mode}` : '✗',
         branch: newExperiment.branch,
         route: this.formatRoute(newExperiment),
       }]
@@ -776,13 +780,8 @@ export default class Create extends Command {
     config: SimplifiedExperimentsConfig
   ): Promise<void> {
     try {
-      // Validate total weight doesn't exceed 100%
-      const totalWeight = config.experiments
-        .reduce((sum, exp) => sum + (exp.rules?.[0]?.weight || 0), 0)
-
-      if (totalWeight > 100) {
-        throw new Error(`Total experiment weight (${totalWeight}%) exceeds 100%`)
-      }
+      // Validate total weight doesn't exceed 100% for each routing group
+      validateWeights(config)
 
       // Validate config size (max 32KB for Heroku config vars)
       const configJson = JSON.stringify(config, null, 2)

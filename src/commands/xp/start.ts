@@ -6,6 +6,7 @@ import {
   parseExperimentsConfig,
   isSimplifiedConfig,
   migrateToSimplified,
+  validateWeights,
 } from '../../types/experiment'
 
 export default class Start extends Command {
@@ -139,14 +140,8 @@ export default class Start extends Command {
     config: SimplifiedExperimentsConfig
   ): Promise<void> {
     try {
-      // Validate total weight doesn't exceed 100%
-      const totalWeight = config.experiments
-        .filter(exp => exp.active !== false)
-        .reduce((sum, exp) => sum + (exp.rules?.[0]?.weight || 0), 0)
-
-      if (totalWeight > 100) {
-        throw new Error(`Total experiment weight (${totalWeight}%) exceeds 100%`)
-      }
+      // Validate total weight doesn't exceed 100% for each routing group
+      validateWeights(config)
 
       // Validate config size (max 32KB for Heroku config vars)
       const configJson = JSON.stringify(config, null, 2)
