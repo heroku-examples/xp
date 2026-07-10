@@ -183,7 +183,7 @@ export default class Watch extends Command {
           experiment: appName,
           branch: '',
           active: '',
-          route: 'baseline --',
+          route: 'baseline --'.padStart(29),
           avgResponseTime: '',
           errorRate: '',
           throughput: '',
