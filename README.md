@@ -1,4 +1,4 @@
-# Heroku XP (Experiments)
+# Heroku Experiments (XP)
 
 <a href="https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view"><img width="1860" height="1206" alt="image" src="https://github.com/user-attachments/assets/ed788267-a657-4819-8858-f06f500999ad" /></a>
 
