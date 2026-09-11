@@ -1,8 +1,9 @@
 # Heroku XP (Experiments)
 
-> Production A/B testing and experimentation platform for Heroku apps
+<a href="https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view"><img width="1860" height="1206" alt="image" src="https://github.com/user-attachments/assets/ed788267-a657-4819-8858-f06f500999ad" /></a>
 
-Heroku XP is a CLI plugin that enables **controlled experimentation** by creating temporary experiment apps that receive a portion of your real traffic through advanced routing rules.
+
+[video](https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view) | [slides](https://docs.google.com/presentation/d/1KvxAeJ0Xug6wQNI0cdC4rvCINTaKzChldM2JTwtH5n4/edit?usp=sharing)
 
 ## Overview
 
