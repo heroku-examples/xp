@@ -1,341 +1,353 @@
-# Example Usage
+# Heroku Experiments (XP)
 
-This guide walks through a complete example of setting up preview environments for a Node.js app.
+<a href="https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view"><img width="1860" height="1206" alt="image" src="https://github.com/user-attachments/assets/ed788267-a657-4819-8858-f06f500999ad" /></a>
 
-## Scenario
 
-You have a production app `bash-web` and want to create a preview environment for branch `feature-routing` that:
-- Receives 50% of traffic (canary deployment)
-- Is accessible via `/app-setups` path
-- Can be accessed with `?x-heroku-preview=my-branch` query parameter
-- Can be accessed with `x-heroku-preview: my-branch` header
-- Auto-expires after 1 hour
+[video](https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view) | [slides](https://docs.google.com/presentation/d/1KvxAeJ0Xug6wQNI0cdC4rvCINTaKzChldM2JTwtH5n4/edit?usp=sharing)
 
-## Step 1: Install Plugin
+## Overview
+
+**Test features with real traffic before full rollout.** Unlike review apps (which are isolated sandboxes), experiments enable you to:
+
+- **Route a percentage of production traffic** to experimental builds (e.g., 10% of users see the new feature)
+- **Target specific user segments** using paths, query parameters, headers, or JSON body matching
+- **Mirror traffic** to both versions for zero-impact
+- **Share Config Vars and environment** inherit app configuration automatically
+- **Auto-expire experiments** with configurable time-to-live (TTL)
+- **Monitor real-time metrics** comparing experiment vs. production performance
+
+## Quick Installation
 
 ```bash
-heroku plugins:install @heroku-cli/plugin-previews
+# Install the CLI plugin
+heroku plugins:install @heroku-cli/xp
 ```
 
-## Step 2: Add Buildpack
+## Basic Usage
+
+### Create an Experiment
 
 ```bash
-# Your app already has a language buildpack
-heroku buildpacks --app bash-web
-# === bash-web Buildpack URLs
-# 1. heroku/nodejs
-
-# Add Traefik buildpack
-heroku buildpacks:add https://github.com/heroku/heroku-buildpack-traefik-preview --app bash-web
-
-# Verify
-heroku buildpacks --app bash-web
-# === bash-web Buildpack URLs
-# 1. heroku/nodejs
-# 2. https://github.com/heroku/heroku-buildpack-traefik-preview
-```
-
-## Step 3: Create Preview Environment
-
-```bash
+# Route 50% of traffic to a new feature branch
 heroku xp:create \
-  --app bash-web \
-  --branch my-branch \
-  --weight 50 \
-  --path /app-setups \
-  --query x-heroku-preview=my-branch \
-  --header x-heroku-preview=my-branch \
-  --ttl 1h \
-  --mirror
+  --app myapp \
+  --branch new-ui \
+  --weight 50
 ```
 
-Output:
-```
-Creating preview for branch my-branch... 
-Creating mirrored preview app... 
-Waiting for app setup...
-Created bash-web-my-branch-a3f2c1
-
-Preview environment created:
-  Branch: my-branch
-  App: bash-web-my-branch-a3f2c1
-  Weight: 50%
-  Paths: ["/app-setups"]
-  Query params: {"x-heroku-preview":"my-branch"}
-  Headers: {"x-heroku-preview":"my-branch"}
-  TTL: 1h
-
-Next steps:
-  1. Deploy to activate routing:
-     git commit --allow-empty -m "Add preview" && git push heroku main
-  2. Deploy preview branch:
-     git push heroku 'my-branch':main --app 'bash-web-my-branch-a3f2c1'
-
-Note: 50% of traffic will be routed to the preview app
-```
-
-## Step 3a: Verify Experiment Created
+### Monitor Performance
 
 ```bash
-# List all experiments
-heroku xp:list --app bash-web
+# View real-time traffic comparison
+heroku xp:watch --app prod-app
 ```
 
-Output:
-```
-Experiments for bash-web:
-
-Active  Branch     Route           
-──────  ─────────  ────────────────
-✓       my-branch  50% /app-setups 
-
-Total experiments: 1
-```
-
-## Step 4: Deploy Production App
-
-Deploy to regenerate Traefik config:
+### Update Routing Rule
 
 ```bash
-git commit --allow-empty -m "Add preview routing"
-git push heroku main
+# Lower to 1% of traffic
+heroku xp:update -app myapp --branch new-ui \
+  --weight 1
 ```
 
-Build output will include:
-```
------> Installing Traefik Preview Routing
-       Installing Traefik v2.11.0
-       Downloading Traefik binary
-       Verifying checksum
-       Found preview configurations
-       Generating Traefik configuration
-       Generating configs for branches: my-branch
-       Generated Traefik configuration
------> Traefik Preview Routing installed
-       Version: 2.11.0
-       Binary: .heroku/traefik/bin/traefik
-       Config: .heroku/traefik/config/
-```
-
-## Step 5: Deploy Preview Branch
+### Advanced Routing
 
 ```bash
-git checkout my-branch
-git push heroku my-branch:main --app bash-web-my-branch-a3f2c1
+# Route specific paths to experiment
+heroku xp:create --app myapp --branch api-v2 \
+  --path /api/v2
+
+# Route beta users via JSON body content
+heroku xp:create --app myapp --branch beta-user \
+  --body-json '$.user.id == 123'
+
+# Mirror all traffic to git tag to load test for 5 min
+heroku xp:create --app myapp --branch v1.1 \
+  --path / --mirror --ttl 5min
 ```
 
-## Step 6: Test Routing
-
-### Weight-based (50% traffic)
+### Clean Up
 
 ```bash
-# Run 100 requests, ~50 should go to preview
-for i in {1..100}; do
-  curl -s https://bash-web.herokuapp.com/ | grep -o "version-[0-9]*"
-done | sort | uniq -c
+# Stop routing traffic
+heroku xp:stop --app myapp --branch new-ui
 
-# Output:
-#   48 version-prod
-#   52 version-preview
+# Destroy experiment completely
+heroku xp:destroy --app myapp --branch exp-new-ui --confirm prod-app
 ```
 
-### Path-based
+## Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[FEATURES.md](FEATURES.md)** - Deep dive into JSONPath routing, traffic mirroring, and stats
+- **[EXAMPLE.md](EXAMPLE.md)** - Step-by-step walkthrough with real commands
+- **[SECURITY.md](SECURITY.md)** - Security policy, best practices, and audit history
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development setup and contribution guidelines
+
+## Architecture
+
+Heroku XP uses a **reverse proxy architecture** with Traefik running on your web dyno:
+
+```
+┌─────────────┐
+│  Internet   │
+└──────┬──────┘
+       │
+       ▼
+┌───────────────────────────────────┐
+│  Parent App Dyno     │
+│  ┌─────────────────────────────┐  │
+│  │  Traefik Proxy ($PORT)      │  │
+│  │  • Weight: 10%              │  │
+│  │  • Path: /exp/*             │  │
+│  │  • Query: ?exp=...          │  │
+│  │  • Header: x-exp=...        │  │
+│  └─────────┬───────────────────┘  │
+│            │                       │
+│      ┌─────┴──────┐               │
+│      │            │               │
+│   90%│         10%│               │
+│      ▼            ▼               │
+│  ┌────────┐  (external URL)      │
+│  │Prod App│                       │
+│  │ :5000  │                       │
+│  └────────┘                       │
+└────────────────┼───────────────────┘
+                 │
+                 ▼
+     ┌────────────────────────┐
+     │  Experiment App        │
+     │  myapp-exp-123-a7f3d   │
+     └────────────────────────┘
+```
+
+### How It Works
+
+1. **Plugin configures routing**: `heroku xp:create` updates `HEROKU_EXPERIMENTS` config var on parent app
+2. **Buildpack installs Traefik**: On deploy, the buildpack generates Traefik routing rules from `HEROKU_EXPERIMENTS`
+3. **Traefik routes traffic**: All traffic flows through Traefik on `$PORT`, which routes based on configured rules
+4. **Experiment app runs independently**: Separate Heroku app with its own dynos, config, and slug
+5. **Real-time metrics**: Traefik logs traffic stats for parent vs. experiment comparison
+
+## Routing Features
+
+### Weight-Based Routing
+
+Probabilistic load balancing - route a percentage of requests to the experiment:
 
 ```bash
-curl https://bash-web.herokuapp.com/app-setups
-# Routes to preview app (my-branch)
-
-curl https://bash-web.herokuapp.com/other-path
-# Routes based on weight (50/50)
+heroku xp:create --app prod-app --name exp-gradual \
+  --copy-parent --weight 10
 ```
 
-### Query parameter
+### Path-Based Routing
+
+Route specific URL paths to the experiment:
 
 ```bash
-curl "https://bash-web.herokuapp.com/?x-heroku-preview=my-branch"
-# Always routes to preview app
-
-curl "https://bash-web.herokuapp.com/"
-# Routes based on weight (50/50)
+heroku xp:create --app prod-app --name exp-new-checkout \
+  --tarball https://github.com/myorg/myrepo/tarball/new-checkout \
+  --path /checkout
 ```
 
-### Header-based
+### Query Parameter Routing
+
+Route requests with specific query parameters:
 
 ```bash
-curl -H "x-heroku-preview: my-branch" https://bash-web.herokuapp.com/
-# Always routes to preview app
-
-curl https://bash-web.herokuapp.com/
-# Routes based on weight (50/50)
+heroku xp:create --app prod-app --name exp-beta \
+  --copy-parent --query beta=true
 ```
 
-## Step 7: Monitor
+### Header-Based Routing
 
-### Check Traefik Logs
+Route requests with specific HTTP headers:
 
 ```bash
-heroku logs --app bash-web --tail | grep Traefik
+heroku xp:create --app prod-app --name exp-mobile \
+  --copy-parent --header x-mobile-app=true
 ```
 
-Output:
-```
-2026-06-18T12:00:00.000Z app[web.1]: Starting Traefik preview router...
-2026-06-18T12:00:02.000Z app[web.1]: Traefik started (PID: 123)
-```
+### JSON Body Routing
 
-### Check Routing Stats
+Route based on JSON request body content using JSONPath:
 
 ```bash
-heroku logs --app bash-web --tail --source app | jq 'select(.RouterName)'
+heroku xp:create --app prod-app --name exp-enterprise \
+  --copy-parent --body-json '$.account.tier == "enterprise"'
 ```
 
-Output (JSON access logs):
-```json
-{
-  "ClientAddr": "1.2.3.4:12345",
-  "RouterName": "preview-my-branch",
-  "ServiceName": "preview-my-branch",
-  "RequestPath": "/app-setups",
-  "Duration": 123456789
-}
-```
+### Traffic Mirroring
 
-## Step 8: Update Routing
-
-To change weight to 10%:
+Send traffic to BOTH parent and experiment (users always get parent response):
 
 ```bash
-heroku xp:update \
-  --app bash-web \
-  --branch my-branch \
-  --weight 10
-
-# Redeploy to apply
-git commit --allow-empty -m "Update preview weight"
-git push heroku main
+heroku xp:create --app prod-app --name exp-load-test \
+  --copy-parent --mirror-traffic
 ```
 
-## Step 9: Cleanup (After 1 Hour)
+See [FEATURES.md](FEATURES.md) for detailed routing documentation.
 
-The preview will auto-expire after 1 hour, but you can manually destroy it:
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `heroku xp:create` | Create a new experiment with routing configuration |
+| `heroku xp:list` | List all experiments for a parent app |
+| `heroku xp:info` | Show detailed information and traffic statistics |
+| `heroku xp:update` | Update routing configuration for an experiment |
+| `heroku xp:start` | Resume routing traffic to a stopped experiment |
+| `heroku xp:stop` | Stop routing traffic (keeps app running) |
+| `heroku xp:destroy` | Permanently delete an experiment and its app |
+| `heroku xp:watch` | Watch experiment traffic in real-time |
+
+All commands support both `xp:` and `experiments:` prefixes.
+
+Run `heroku xp:COMMAND --help` for detailed usage information.
+
+## Local Testing
+
+Test experiments locally before deploying to production:
 
 ```bash
-heroku xp:destroy \
-  --app bash-web \
-  --branch my-branch \
-  --destroy-app
+# Start local Traefik proxy
+cd test/local
+./start-local-proxy.sh
 
-# Redeploy to remove routing
-git commit --allow-empty -m "Remove preview routing"
-git push heroku main
+# Configure experiments
+export HEROKU_EXPERIMENTS='{"version":1,"experiments":{...}}'
+
+# Test routing
+curl http://localhost:5000
 ```
 
-## Step 10: Verify Removal
+See [test/local/README.md](test/local/README.md) for complete local testing setup.
+
+## Use Cases
+
+### Gradual Rollout
+
+Test a new feature with progressively more traffic:
 
 ```bash
-# Check config var
-heroku config:get HEROKU_PREVIEWS --app bash-web
-# {"version":1,"previews":{}}
+# Step 1: Start with 5%
+heroku xp:create --app prod-app --name exp-new-ui --weight 5 --tarball URL
 
-# Check all traffic goes to production
-for i in {1..100}; do
-  curl -s https://bash-web.herokuapp.com/ | grep -o "version-[0-9]*"
-done | sort | uniq -c
-# 100 version-prod
+# Step 2: Monitor metrics
+heroku xp:info --app prod-app --name exp-new-ui --period 24h
+
+# Step 3: Increase to 25% if metrics look good
+heroku xp:update --app prod-app --name exp-new-ui --weight 25
+
+# Step 4: Full rollout - merge to main and destroy experiment
 ```
 
-## Advanced: Multiple Preview Environments
+### Beta User Testing
 
-Create multiple previews simultaneously:
+Route only beta users to experiment:
 
 ```bash
-# Feature A: 10% weight
-heroku xp:create --app bash-web --branch feature-a --weight 10 --mirror
-
-# Feature B: path routing
-heroku xp:create --app bash-web --branch feature-b --path /feature-b --mirror
-
-# Feature C: header routing  
-heroku xp:create --app bash-web --branch feature-c --header x-preview=feature-c --mirror
-
-# Deploy to activate all
-git commit --allow-empty -m "Add multiple previews"
-git push heroku main
-
-# List all experiments
-heroku xp:list --app bash-web
+heroku xp:create --app prod-app --name exp-beta-features \
+  --copy-parent \
+  --body-json '$.user.beta == true' \
+  --header x-beta=true
 ```
 
-Result:
-- 10% of general traffic → Feature A
-- `/feature-b` requests → Feature B
-- `x-preview: feature-c` requests → Feature C
-- Remaining 90% → Production
+### API Versioning
 
-The `xp:list` command output:
-```
-Active  Branch     Route                      
-──────  ─────────  ───────────────────────────
-✓       feature-a  10%                        
-✓       feature-b  /feature-b                 
-✓       feature-c  header:x-preview=feature-c 
-
-Total experiments: 3
-```
-
-## Debugging
-
-### Check Generated Traefik Config
+Test new API version on specific path:
 
 ```bash
-heroku run 'cat .heroku/traefik/config/dynamic/routers.yml' --app bash-web
-heroku run 'cat .heroku/traefik/config/dynamic/services.yml' --app bash-web
-heroku run 'cat .heroku/traefik/config/dynamic/middlewares.yml' --app bash-web
+heroku xp:create --app prod-app --name exp-api-v2 \
+  --tarball https://github.com/myorg/myrepo/tarball/api-v2 \
+  --path /api/v2
 ```
 
-### Test Traefik Locally
+### Load Testing
+
+Test performance with production traffic without user impact:
 
 ```bash
-# Download same Traefik version
-curl -L https://github.com/traefik/traefik/releases/download/v2.11.0/traefik_v2.11.0_darwin_amd64.tar.gz -o traefik.tar.gz
-tar xzf traefik.tar.gz
-
-# Copy production config
-heroku run 'tar czf - .heroku/traefik/config' --app bash-web | tar xzf -
-
-# Start Traefik locally
-./traefik --configFile=.heroku/traefik/config/traefik.yml
+heroku xp:create --app prod-app --name exp-load-test \
+  --copy-parent \
+  --mirror-traffic \
+  --ttl 2h
 ```
 
-## Troubleshooting
+See [EXAMPLE.md](EXAMPLE.md) for detailed workflow examples.
 
-### "Preview app does not exist"
+## Differences from Review Apps
 
-You forgot `--mirror` flag. Either:
-1. Create app manually: `heroku create bash-web-my-branch-a3f2c1`
-2. Re-run with `--mirror`
+| Feature | Review Apps | Heroku XP |
+|---------|-------------|-----------|
+| **Purpose** | Pre-merge testing in isolated environments | Production A/B testing with real traffic |
+| **Requires Pipeline** | Yes | No, works with any Heroku app |
+| **Traffic Routing** | None (manual access only) | Weight, path, query, headers, JSON body |
+| **Production Traffic** | No | Receives real production traffic |
+| **Metrics** | Basic dyno stats only | Real-time traffic comparison |
+| **Traffic Mirroring** | Not supported | Supported |
+| **Source** | Automatically from PR branches | Flexible: tarballs, parent slug, or manual |
+| **Use Case** | Testing before merge | Testing in production with controlled exposure |
 
-### "Checksum verification failed"
+## Limitations
 
-Network issue or GitHub releases compromised. Retry:
-```bash
-heroku repo:purge_cache --app bash-web
-git push heroku main
-```
+- Maximum 50 experiments per app (plugin enforced)
+- 32KB config var size limit (Heroku platform limit)
+- Routing changes require deploy to take effect (not runtime updates)
+- Stats reset on dyno restart (not persistent)
+- Experiment apps must be publicly accessible (no VPC peering support)
+- JSON body routing adds ~5-10ms latency (body buffering required)
 
-### Preview routing not working
+## Security
 
-Most common: forgot to redeploy after creating preview.
-```bash
-git commit --allow-empty -m "Regenerate config"
-git push heroku main
-```
+Heroku XP implements comprehensive security measures:
 
-### 502 errors to preview app
+- **Command injection protection** - All shell inputs properly escaped
+- **JSON prototype pollution protection** - Safe parsing with validation
+- **Path traversal prevention** - Normalized and validated paths
+- **CRLF injection prevention** - Header value validation
+- **Traefik binary verification** - SHA256 checksum validation
+- **Input length limits** - Maximum constraints on all user inputs
+- **Resource limits** - Maximum 50 experiments to prevent config exhaustion
 
-Preview app is down or not deployed:
-```bash
-heroku ps --app bash-web-my-branch-a3f2c1
-heroku releases --app bash-web-my-branch-a3f2c1
-curl https://bash-web-my-branch-a3f2c1.herokuapp.com/
-```
+See [SECURITY.md](SECURITY.md) for complete security policy and best practices.
+
+### Reporting Security Issues
+
+For security vulnerabilities, please email **security@heroku.com**. Do not open public GitHub issues.
+
+## Requirements
+
+- Heroku CLI installed
+- Node.js >= 18.0.0 (for plugin development)
+- A deployed Heroku app
+- Git repository
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Development setup
+- Running tests
+- Code style guidelines
+- Pull request process
+- Security testing
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Documentation**: See documentation links above
+- **Issues**: [GitHub Issues](https://github.com/heroku/experiments/issues)
+- **Questions**: [GitHub Discussions](https://github.com/heroku/experiments/discussions)
+- **Security**: security@heroku.com
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+
+---
+
+**Ready to experiment?** Start with [QUICKSTART.md](QUICKSTART.md) to get up and running in 5 minutes.
