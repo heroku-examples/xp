@@ -23,6 +23,14 @@ export default class Create extends Command {
     `$ heroku xp:create -a xp-demo-staging -b 1-green --weight 50 --path '/*' --mirror false`,
   ]
 
+  private sanitizeErrorMessage(error: any): string {
+    const message = error.message || String(error)
+    // Strip UUIDs, app IDs, pipeline IDs
+    return message.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '[ID]')
+      .replace(/app-\d+/gi, '[APP]')
+      .replace(/https?:\/\/[^\s]+/gi, '[URL]')
+  }
+
   static flags: any = {
     app: flags.app({required: true}),
     remote: flags.remote(),
@@ -68,6 +76,30 @@ export default class Create extends Command {
     const branch = flags.branch
 
     try {
+      // Check if only branch is provided (no routing config)
+      const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.mirror !== undefined
+
+      if (!hasRoutingConfig) {
+        // Show default experiment rules and confirm
+        this.log('')
+        this.log('Default experiment rules:')
+        this.log('  method: GET')
+        this.log('  weight: 10')
+        this.log('  mirror: true')
+        this.log('')
+
+        const confirmed = await cli.confirm('Create experiment with these defaults? (y/n)')
+        if (!confirmed) {
+          this.log('Cancelled.')
+          return
+        }
+
+        // Apply defaults
+        flags.weight = 10
+        flags.mirror = 'true'
+        flags.method = 'GET'
+      }
+
       // Start spinner
       cli.action.start('Creating experiment')
 
@@ -93,63 +125,136 @@ export default class Create extends Command {
       // Step 7: Check if parent app is in a pipeline
       const pipelineCoupling = await this.getPipelineCoupling(parentAppData.id)
 
-      // Step 8: Create or reuse experiment app
-      const experimentAppName = existingExperiment?.appName || this.generateAppName(branch, parentApp)
-      let newAppData
+      // Initialize reviewAppMode
+      let reviewAppMode: 'standard' | 'review-app-existing' | 'review-app-new' = 'standard'
 
-      if (isUpdate) {
-        // Reuse existing app
-        newAppData = await this.getAppDetails(experimentAppName)
-      } else {
-        // Create new experiment app via apps API
-        newAppData = await this.createApp(
-          experimentAppName,
-          parentAppData,
+      // Step 7a-7h: Check for review app support and existing review apps
+      try {
+        const reviewAppCheck = await this.checkReviewAppSupport(
+          pipelineCoupling,
+          repoData,
           branch,
-          flags
+          isUpdate
         )
+
+        if (reviewAppCheck.supported) {
+          if (reviewAppCheck.existingApp) {
+            // Step 7b: Existing review app found
+            reviewAppMode = 'review-app-existing'
+          } else {
+            // Step 7c: No existing review app, create new one
+            reviewAppMode = 'review-app-new'
+          }
+        }
+      } catch (error: any) {
+        // Step 7d: Fallback to standard mode on error
+        reviewAppMode = 'standard'
       }
 
-      // Step 9: Copy buildpacks from parent app (skip if updating)
-      if (!isUpdate) {
+      // Step 8: Create or reuse experiment app (skip if review app mode)
+      let experimentAppName: string
+      let newAppData: any
+
+      if (reviewAppMode === 'review-app-existing') {
+        // Use existing review app
+        const reviewAppCheck = await this.checkReviewAppSupport(
+          pipelineCoupling,
+          repoData,
+          branch,
+          isUpdate
+        )
+        // Get full app details from the review app's app reference
+        const existingApp = reviewAppCheck.existingApp!
+
+        // Review app response might have app.name or app.id
+        experimentAppName = existingApp.app?.name || existingApp.app?.id
+
+        if (!experimentAppName) {
+          throw new Error(`Review app for branch ${branch} exists but has no app name or ID`)
+        }
+
+        newAppData = await this.getAppDetails(experimentAppName)
+      } else if (reviewAppMode === 'review-app-new') {
+        // Create new review app
+        const tarballUrl = await this.getTarballUrl(repoData.repo, branch)
+
+        // Fetch head SHA from pull-requests endpoint
+        const headSha = await this.getHeadShaFromPullRequests(pipelineCoupling.pipeline.id, branch)
+
+        const result = await this.createReviewApp(
+          pipelineCoupling.pipeline.id,
+          branch,
+          tarballUrl,
+          parentApp,
+          repoData.repo,
+          headSha
+        )
+        newAppData = result.appData
+        experimentAppName = newAppData.name
+      } else {
+        // Standard mode: create or reuse experiment app
+        experimentAppName = existingExperiment?.appName || this.generateAppName(branch, parentApp)
+
+        if (isUpdate) {
+          // Reuse existing app
+          newAppData = await this.getAppDetails(experimentAppName)
+        } else {
+          // Create new experiment app via apps API
+          newAppData = await this.createApp(
+            experimentAppName,
+            parentAppData,
+            branch,
+            flags
+          )
+        }
+      }
+
+      // Step 9: Copy buildpacks from parent app (skip if updating or review app mode)
+      if (!isUpdate && reviewAppMode === 'standard') {
         await this.copyBuildpacks(parentAppData.name, experimentAppName)
       }
 
-      // Step 10: Copy config vars from parent app
-      await this.copyConfigVars(parentAppData.name, experimentAppName, branch)
+      // Step 10: Copy config vars from parent app (skip for new review apps - they get config from pipeline settings)
+      if (reviewAppMode !== 'review-app-new') {
+        await this.copyConfigVars(parentAppData.name, experimentAppName, branch)
+      }
 
-      // Step 11: Add to pipeline if parent app is in one (skip if updating)
-      if (pipelineCoupling && !isUpdate) {
+      // Step 11: Add to pipeline if parent app is in one (skip if updating or review app mode)
+      if (pipelineCoupling && !isUpdate && reviewAppMode === 'standard') {
         await this.addToPipeline(newAppData.id, pipelineCoupling.pipeline.id, pipelineCoupling.stage)
       }
 
-      // Step 12: Attach GitHub repo via kolkrabbi API (skip if updating)
-      if (!isUpdate) {
+      // Step 12: Attach GitHub repo via kolkrabbi API (skip if updating or review app mode)
+      if (!isUpdate && reviewAppMode === 'standard') {
         await this.attachGitHubRepo(newAppData.id, repoData.repo)
       }
 
-      // Step 13: Enable auto-deploy for the branch
-      await this.enableAutoDeploy(newAppData.id, branch)
-
-      // Step 13a: Check if app has builds, then conditionally trigger initial deploy
-      let shouldDeploy = false
-      try {
-        const {body: builds} = await this.heroku.get(`/apps/${experimentAppName}/builds`, {
-          headers: {Accept: 'application/vnd.heroku+json; version=3'},
-        })
-        const buildsArray = builds as any[]
-        shouldDeploy = !buildsArray || buildsArray.length === 0
-      } catch (error: any) {
-        shouldDeploy = true
+      // Step 13: Enable auto-deploy for the branch (skip if review app mode)
+      if (reviewAppMode === 'standard') {
+        await this.enableAutoDeploy(newAppData.id, branch)
       }
 
-      // Only trigger deploy if no builds exist
-      if (shouldDeploy) {
-        await this.triggerPush(newAppData.id, branch)
+      // Step 13a: Check if app has builds, then conditionally trigger initial deploy (skip if review app mode)
+      if (reviewAppMode === 'standard') {
+        let shouldDeploy = false
+        try {
+          const {body: builds} = await this.heroku.get(`/apps/${experimentAppName}/builds`, {
+            headers: {Accept: 'application/vnd.heroku+json; version=3'},
+          })
+          const buildsArray = builds as any[]
+          shouldDeploy = !buildsArray || buildsArray.length === 0
+        } catch (error: any) {
+          shouldDeploy = true
+        }
+
+        // Only trigger deploy if no builds exist
+        if (shouldDeploy) {
+          await this.triggerPush(newAppData.id, branch)
+        }
       }
 
-      // Step 14: Wait for app to boot and respond (skip if updating)
-      if (!isUpdate) {
+      // Step 14: Wait for app to boot and respond (skip if updating or new review app)
+      if (!isUpdate && reviewAppMode !== 'review-app-new') {
         await this.waitForAppBoot(experimentAppName)
       }
 
@@ -162,7 +267,8 @@ export default class Create extends Command {
         repoData.repo,
         newAppData.web_url,
         existingExperiment,
-        flags
+        flags,
+        reviewAppMode
       )
 
       if (isUpdate) {
@@ -185,7 +291,13 @@ export default class Create extends Command {
 
       // Display created/updated experiment in table format
       this.log('')
-      this.log(`${isUpdate ? 'Updated' : 'Created'} experiment:`)
+      let successMessage = `${isUpdate ? 'Updated' : 'Created'} experiment`
+      if (reviewAppMode === 'review-app-existing') {
+        successMessage += ' (using existing review app)'
+      } else if (reviewAppMode === 'review-app-new') {
+        successMessage += ' (created as review app)'
+      }
+      this.log(`${successMessage}:`)
       this.log('')
 
       // Check if experiment is in mirror mode
@@ -200,7 +312,7 @@ export default class Create extends Command {
       cli.table(tableData, {
         active: {
           header: 'Active',
-          minWidth: 8,
+          minWidth: 15,
         },
         branch: {
           header: 'Branch',
@@ -208,7 +320,7 @@ export default class Create extends Command {
         },
         route: {
           header: 'Route',
-          minWidth: 30,
+          minWidth: 20,
         },
       })
 
@@ -218,7 +330,7 @@ export default class Create extends Command {
 
     } catch (error: any) {
       cli.action.stop('')
-      this.error(`Failed to create experiment: ${error.message}`)
+      this.error(`Failed to create experiment: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -262,7 +374,7 @@ export default class Create extends Command {
       if (error.statusCode === 404) {
         throw new Error(`App "${appName}" not found`)
       }
-      throw new Error(`Failed to fetch app details: ${error.message}`)
+      throw new Error(`Failed to fetch app details: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -298,11 +410,11 @@ export default class Create extends Command {
             },
           })
         } catch (error: any) {
-          throw new Error(`Unable to add heroku-xp buildpack: ${error.message}`)
+          throw new Error(`Unable to add heroku-xp buildpack: ${this.sanitizeErrorMessage(error)}`)
         }
       }
     } catch (error: any) {
-      throw new Error(`Failed to configure buildpacks: ${error.message}`)
+      throw new Error(`Failed to configure buildpacks: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -323,15 +435,19 @@ export default class Create extends Command {
         throw new Error('No GitHub repository connected')
       }
 
+      if (!repoData.id) {
+        throw new Error('GitHub repository connection is missing repository ID')
+      }
+
       return {
         repo: repoData.repo,
-        id: repoData.id!,
+        id: repoData.id,
       }
     } catch (error: any) {
       if (error.message.includes('No GitHub repository')) {
         throw error
       }
-      throw new Error(`Failed to verify GitHub connection: ${error.message}. Ensure the app is connected to a GitHub repository.`)
+      throw new Error(`Failed to verify GitHub connection: ${this.sanitizeErrorMessage(error)}. Ensure the app is connected to a GitHub repository.`)
     }
   }
 
@@ -351,14 +467,14 @@ export default class Create extends Command {
 
           return config
         } catch (error: any) {
-          throw new Error(`Failed to parse HEROKU_XP config: ${error.message}`)
+          throw new Error(`Failed to parse HEROKU_XP config: ${this.sanitizeErrorMessage(error)}`)
         }
       }
 
       // Return empty v2 config if HEROKU_XP doesn't exist
       return createEmptySimplifiedConfig()
     } catch (error: any) {
-      throw new Error(`Failed to read experiment configuration: ${error.message}`)
+      throw new Error(`Failed to read experiment configuration: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -459,7 +575,7 @@ export default class Create extends Command {
       })
       return app
     } catch (error: any) {
-      throw new Error(`Failed to create app: ${error.message}`)
+      throw new Error(`Failed to create app: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -482,7 +598,7 @@ export default class Create extends Command {
         },
       })
     } catch (error: any) {
-      throw new Error(`Failed to copy buildpacks: ${error.message}`)
+      throw new Error(`Failed to copy buildpacks: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -536,7 +652,7 @@ export default class Create extends Command {
         body: configVarsToCopy,
       })
     } catch (error: any) {
-      throw new Error(`Failed to copy config vars: ${error.message}`)
+      throw new Error(`Failed to copy config vars: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -550,7 +666,7 @@ export default class Create extends Command {
         },
       })
     } catch (error: any) {
-      throw new Error(`Failed to add app to pipeline: ${error.message}`)
+      throw new Error(`Failed to add app to pipeline: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -569,7 +685,7 @@ export default class Create extends Command {
         }
       )
     } catch (error: any) {
-      throw new Error(`Failed to attach GitHub repo: ${error.message}`)
+      throw new Error(`Failed to attach GitHub repo: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -589,7 +705,7 @@ export default class Create extends Command {
         }
       )
     } catch (error: any) {
-      throw new Error(`Failed to enable auto-deploy: ${error.message}`)
+      throw new Error(`Failed to enable auto-deploy: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -607,7 +723,7 @@ export default class Create extends Command {
         }
       )
     } catch (error: any) {
-      throw new Error(`Failed to trigger push: ${error.message}`)
+      throw new Error(`Failed to trigger push: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -664,9 +780,17 @@ export default class Create extends Command {
     repo: string,
     url: string | undefined,
     existingExperiment: SimplifiedExperimentEntry | undefined,
-    flags: any
+    flags: any,
+    reviewAppMode?: 'standard' | 'review-app-existing' | 'review-app-new'
   ): SimplifiedExperimentEntry {
     const now = new Date().toISOString()
+
+    // Validate header/query for CRLF injection
+    const validateNoNewlines = (value: string, type: string) => {
+      if (/[\r\n]/.test(value)) {
+        throw new Error(`Invalid ${type}: contains newline characters`)
+      }
+    }
 
     // Build rules array
     const rules: any[] = []
@@ -698,14 +822,22 @@ export default class Create extends Command {
       // Convert query array to string format "key: value"
       if (flags.query && Array.isArray(flags.query)) {
         // Take first query param for now (format: "key=value" -> "key: value")
-        const [key, value] = flags.query[0].split('=')
+        // Handle multiple = signs correctly
+        const [key, ...valueParts] = flags.query[0].split('=')
+        const value = valueParts.join('=')
+        validateNoNewlines(key, 'query key')
+        validateNoNewlines(value, 'query value')
         rule.query = `${key}: ${value}`
       }
 
       // Convert header array to string format "key: value"
       if (flags.header && Array.isArray(flags.header)) {
         // Take first header for now (format: "key=value" -> "key: value")
-        const [key, value] = flags.header[0].split('=')
+        // Handle multiple = signs correctly
+        const [key, ...valueParts] = flags.header[0].split('=')
+        const value = valueParts.join('=')
+        validateNoNewlines(key, 'header key')
+        validateNoNewlines(value, 'header value')
         rule.header = `${key}: ${value}`
       }
 
@@ -802,7 +934,295 @@ export default class Create extends Command {
         },
       })
     } catch (error: any) {
-      throw new Error(`Failed to update experiment configuration: ${error.message}`)
+      throw new Error(`Failed to update experiment configuration: ${this.sanitizeErrorMessage(error)}`)
     }
   }
+
+  private async retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+    const retryableStatusCodes = [408, 429, 502, 503, 504]
+    const retryableNetworkErrors = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND']
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn()
+      } catch (error: any) {
+        // Don't retry on last attempt
+        if (attempt === maxRetries) {
+          throw error
+        }
+
+        // Check if error is retryable
+        const isRetryableStatus = error.statusCode && retryableStatusCodes.includes(error.statusCode)
+        const isRetryableNetwork = error.code && retryableNetworkErrors.includes(error.code)
+
+        if (!isRetryableStatus && !isRetryableNetwork) {
+          throw error
+        }
+
+        // Calculate delay with exponential backoff and jitter
+        const baseDelay = Math.pow(2, attempt) * 100 // 100ms, 200ms, 400ms
+        const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1) // +/-20% jitter
+        const delay = baseDelay + jitter
+
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+
+    // TypeScript needs this even though we throw above
+    throw new Error('Retry logic error')
+  }
+
+  private async listReviewApps(pipelineId: string, branch: string): Promise<any | null> {
+    try {
+      const {body: reviewApps} = await this.heroku.get(`/pipelines/${pipelineId}/review-apps`, {
+        headers: {
+          'Accept': 'application/vnd.heroku+json; version=3',
+        },
+      })
+      const reviewAppsArray = reviewApps as any[]
+
+      // Filter by branch
+      const matchingReviewApps = reviewAppsArray.filter(
+        (app: any) => app.branch === branch
+      )
+
+      if (matchingReviewApps.length === 0) {
+        return null
+      }
+
+      // Filter out only truly unusable review apps (errored, failed, deleted)
+      // Keep apps with status: pending, creating, succeeded, deployed, etc.
+      const relevantReviewApps = matchingReviewApps.filter(
+        (app: any) => app.status !== 'errored' && app.status !== 'failed' && app.status !== 'deleted'
+      )
+
+      if (relevantReviewApps.length === 0) {
+        return null
+      }
+
+      // Return most recent (sort by created_at descending)
+      relevantReviewApps.sort((a: any, b: any) => {
+        const dateA = new Date(a.created_at).getTime()
+        const dateB = new Date(b.created_at).getTime()
+        return dateB - dateA
+      })
+
+      return relevantReviewApps[0]
+    } catch (error: any) {
+      // Return null on error as specified
+      return null
+    }
+  }
+
+  private async getHeadShaFromPullRequests(pipelineId: string, branch: string): Promise<string | null> {
+    try {
+      const {body: pullRequests} = await this.heroku.get(
+        `/pipelines/${pipelineId}/repo/pull-requests`,
+        {
+          headers: {
+            'Accept': 'application/vnd.heroku+json; version=3.repositories-api',
+          },
+        }
+      )
+
+      const pullRequestsArray = pullRequests as any[]
+
+      // Find PR matching the branch
+      const matchingPR = pullRequestsArray.find(
+        (pr: any) => pr.head?.ref === branch
+      )
+
+      // Return the head SHA if found
+      return matchingPR?.head?.sha || null
+    } catch (error: any) {
+      // Return null on error - SHA is optional
+      return null
+    }
+  }
+
+  private async getTarballUrl(repoName: string, branch: string): Promise<string> {
+    try {
+      // Validate repoName has slash (owner/repo format)
+      if (!repoName.includes('/')) {
+        throw new Error(`Invalid repository name format: "${repoName}". Expected format: owner/repo`)
+      }
+
+      const kolkrabbiUrl = process.env.HEROKU_KOLKRABBI_URL || 'https://kolkrabbi.heroku.com'
+
+      // Request tarball URL from Kolkrabbi
+      const {body: tarballResponse} = await this.heroku.get(
+        `${kolkrabbiUrl}/github/repos/${repoName}/tarball/${branch}`,
+        {
+          hostname: new URL(kolkrabbiUrl).hostname,
+        }
+      )
+
+      const tarballData = tarballResponse as any
+
+      // Extract the archive URL from the response
+      // Kolkrabbi may return the URL directly or in various object properties
+      let tarballUrl: string | undefined
+
+      if (typeof tarballData === 'string') {
+        tarballUrl = tarballData
+      } else if (tarballData) {
+        // Try different possible property names
+        tarballUrl = tarballData.archive_link || tarballData.archive_url || tarballData.url
+      }
+
+      if (!tarballUrl) {
+        throw new Error(`Kolkrabbi did not return a tarball URL for ${repoName}:${branch}`)
+      }
+
+      return tarballUrl
+    } catch (error: any) {
+      throw new Error(`Failed to get tarball URL from Kolkrabbi: ${this.sanitizeErrorMessage(error)}`)
+    }
+  }
+
+  private async checkReviewAppSupport(
+    pipelineCoupling: any,
+    repoData: {repo: string; id: number},
+    branch: string,
+    isUpdate: boolean
+  ): Promise<{supported: boolean; existingApp?: any}> {
+    // Return not supported if not in a pipeline
+    if (!pipelineCoupling) {
+      return {supported: false}
+    }
+
+    // Validate pipeline ID exists
+    if (!pipelineCoupling.pipeline || !pipelineCoupling.pipeline.id) {
+      return {supported: false}
+    }
+
+    // Return not supported if this is an update
+    if (isUpdate) {
+      return {supported: false}
+    }
+
+    // Check for existing review app
+    const existingReviewApp = await this.listReviewApps(pipelineCoupling.pipeline.id, branch)
+
+    if (existingReviewApp) {
+      return {supported: true, existingApp: existingReviewApp}
+    }
+
+    // No existing review app found
+    return {supported: true}
+  }
+
+  private async createReviewApp(
+    pipelineId: string,
+    branch: string,
+    tarballUrl: string,
+    parentAppName: string,
+    repoName: string,
+    headSha?: string | null
+  ): Promise<{appData: any}> {
+    try {
+      // Validate tarball URL format (Kolkrabbi or GitHub)
+      const kolkrabbiUrl = process.env.HEROKU_KOLKRABBI_URL || 'https://kolkrabbi.heroku.com'
+      const isValidUrl = tarballUrl.startsWith(`${kolkrabbiUrl}/github/repos/`) ||
+                         tarballUrl.startsWith(`${kolkrabbiUrl}/source/archive/`) ||
+                         tarballUrl.startsWith('https://api.github.com/') ||
+                         tarballUrl.startsWith('https://codeload.github.com/')
+
+      if (!isValidUrl) {
+        throw new Error(`Invalid tarball URL format: ${tarballUrl}. Expected Kolkrabbi or GitHub URL`)
+      }
+
+      // Validate pipeline ID format
+      if (!pipelineId || typeof pipelineId !== 'string') {
+        throw new Error(`Invalid pipeline ID: ${pipelineId}`)
+      }
+
+      // Construct environment object with parent app name
+      const environment: Record<string, string> = {
+        HEROKU_EXPERIMENT_BRANCH: branch,
+        HEROKU_EXPERIMENT_PARENT: parentAppName,
+        HEROKU_EXPERIMENT_CREATED: new Date().toISOString(),
+      }
+
+      // Construct source_blob with version (head SHA or empty string)
+      const source_blob: {url: string; version: string} = {
+        url: tarballUrl,
+        version: headSha || '',
+      }
+
+      // Create review app
+      const {body: reviewApp} = await this.heroku.post('/review-apps', {
+        headers: {
+          'Accept': 'application/vnd.heroku+json; version=3',
+        },
+        body: {
+          branch,
+          pipeline: pipelineId,
+          source_blob,
+          environment,
+        },
+      })
+
+      const reviewAppData = reviewApp as any
+
+      if (!reviewAppData || !reviewAppData.id) {
+        throw new Error('Review app creation returned invalid response: missing review app ID')
+      }
+
+      // Poll for app data to be populated
+      // The app field is initially null and gets populated asynchronously
+      const reviewAppId = reviewAppData.id
+      const maxAttempts = 60 // 5 minutes
+      const pollInterval = 5000 // 5 seconds
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          const {body: reviewAppStatus} = await this.heroku.get(`/review-apps/${reviewAppId}`, {
+            headers: {
+              'Accept': 'application/vnd.heroku+json; version=3',
+            },
+          })
+          const statusData = reviewAppStatus as any
+
+          // Check for error status first
+          if (statusData.status === 'errored' || statusData.status === 'failed') {
+            throw new Error(`Review app creation failed: ${statusData.error_status || statusData.message || 'Unknown error'}`)
+          }
+
+          // Check if app ID is available
+          if (statusData.app && statusData.app.id) {
+            // Fetch full app details directly from apps endpoint
+            const {body: appDetails} = await this.heroku.get(`/apps/${statusData.app.id}`)
+            return {appData: appDetails}
+          }
+
+          // Status is still pending/creating, continue polling
+
+          // Wait before next poll
+          await new Promise(resolve => setTimeout(resolve, pollInterval))
+        } catch (error: any) {
+          // If it's our thrown error, propagate it
+          if (error.message && error.message.includes('Review app creation failed')) {
+            throw error
+          }
+          // Otherwise continue polling
+        }
+      }
+
+      // Timeout waiting for app data
+      throw new Error(`Timed out waiting for review app to provision. Review app ID: ${reviewAppId}`)
+    } catch (error: any) {
+      // Provide contextual error messages
+      if (error.statusCode === 404) {
+        throw new Error(`Pipeline not found: ${pipelineId}. Ensure the app is in a pipeline with review apps enabled`)
+      } else if (error.statusCode === 422) {
+        throw new Error(`Failed to create review app: ${this.sanitizeErrorMessage(error)}. Check that review apps are enabled for this pipeline and the branch exists in repository ${repoName}`)
+      } else if (error.statusCode === 403) {
+        throw new Error(`Permission denied: Cannot create review app in pipeline. Ensure you have access to this pipeline`)
+      }
+
+      throw new Error(`Failed to create review app: ${this.sanitizeErrorMessage(error)}`)
+    }
+  }
+
 }

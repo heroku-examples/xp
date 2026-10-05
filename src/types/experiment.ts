@@ -19,6 +19,9 @@ export interface SimplifiedExperimentEntry {
   url: string
   rules: SimplifiedRule[]
   active?: boolean  // Whether experiment is currently active (default: true)
+  metadata?: {
+    reviewAppMode?: "standard" | "created" | "reused"
+  }
   createdAt: string
   updatedAt: string
 }

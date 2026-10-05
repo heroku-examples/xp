@@ -112,14 +112,19 @@ export default class Watch extends Command {
         return
       }
 
-      // Fetch parent app info to get web_url
+      // Fetch parent app info to get web_url and app ID
       debug('Fetching parent app details for: %s', appName)
-      const {body: parentApp} = await this.heroku.get<{web_url?: string}>(`/apps/${appName}`)
+      const {body: parentApp} = await this.heroku.get<{web_url?: string; id?: string}>(`/apps/${appName}`)
       const parentWebUrl = parentApp.web_url
-      debug('Parent app web_url: %s', parentWebUrl)
+      const parentAppId = parentApp.id
+      debug('Parent app web_url: %s, id: %s', parentWebUrl, parentAppId)
 
       if (!parentWebUrl) {
         throw new Error(`Parent app ${appName} has no web_url`)
+      }
+
+      if (!parentAppId) {
+        throw new Error(`Parent app ${appName} has no id`)
       }
 
       debug('Fetching metrics for %d experiments using parent URL: %s', experimentsConfig.experiments.length, parentWebUrl)
@@ -133,8 +138,8 @@ export default class Watch extends Command {
       debug('Successfully fetched metrics for %d experiments', metricsResults.length)
 
       // Fetch control (parent app) metrics
-      debug('Fetching control metrics for parent app: %s', appName)
-      const controlMetrics = await this.fetchControlMetrics(appName, parentWebUrl)
+      debug('Fetching control metrics for parent app: %s (id: %s)', appName, parentAppId)
+      const controlMetrics = await this.fetchControlMetrics(appName, parentAppId, parentWebUrl)
       metricsResults.push(controlMetrics)
 
       // Store metrics results for redrawing during countdown
@@ -156,10 +161,11 @@ export default class Watch extends Command {
 
   private async fetchControlMetrics(
     appName: string,
+    appId: string,
     parentWebUrl: string
   ): Promise<ExperimentMetrics> {
     try {
-      debug('fetchControlMetrics: appName=%s, parentWebUrl=%s', appName, parentWebUrl)
+      debug('fetchControlMetrics: appName=%s, appId=%s, parentWebUrl=%s', appName, appId, parentWebUrl)
 
       const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
       debug('Fetching metrics from parent app URL: %s', metricsUrl)
@@ -168,7 +174,7 @@ export default class Watch extends Command {
 
       // Try both router labels and combine metrics
       const routerLabel1 = 'app@file'  // Local app instance
-      const routerLabel2 = `${appName}-control@file`  // Control router
+      const routerLabel2 = `${appId}-control@file`  // Control router
       debug('Parsing Prometheus metrics for control router labels: %s, %s', routerLabel1, routerLabel2)
 
       const metrics1 = this.parsePrometheusMetrics(metricsText, routerLabel1)
@@ -181,9 +187,9 @@ export default class Watch extends Command {
         debug('No metrics found for control router labels: %s, %s', routerLabel1, routerLabel2)
         return {
           experiment: appName,
-          branch: '',
-          active: '',
-          route: 'baseline --'.padStart(29),
+          branch: '-',
+          active: '- baseline',
+          route: '-',
           avgResponseTime: '',
           errorRate: '',
           throughput: '',
@@ -214,7 +220,7 @@ export default class Watch extends Command {
 
       // Calculate throughput with exponential moving average for smoothing
       let throughput = ''
-      const key = `${appName}-control`
+      const key = `${appId}-control`
       const previous = this.previousCounters.get(key)
 
       if (previous) {
@@ -250,9 +256,9 @@ export default class Watch extends Command {
 
       return {
         experiment: appName,
-        branch: '',
-        active: '',
-        route: 'baseline --',
+        branch: '-',
+        active: '- baseline',
+        route: '-',
         avgResponseTime,
         errorRate,
         throughput,
@@ -265,9 +271,9 @@ export default class Watch extends Command {
       debug('Error in fetchControlMetrics: %s', error.message)
       return {
         experiment: appName,
-        branch: '',
-        active: '',
-        route: 'baseline --',
+        branch: '-',
+        active: '- baseline',
+        route: '-',
         avgResponseTime: '',
         errorRate: '',
         throughput: '',
@@ -284,8 +290,8 @@ export default class Watch extends Command {
     parentWebUrl: string
   ): Promise<ExperimentMetrics> {
     try {
-      const {appName, branch, active, rules} = exp
-      debug('fetchExperimentMetrics: appName=%s, branch=%s, parentWebUrl=%s', appName, branch, parentWebUrl)
+      const {appName, appID, branch, active, rules} = exp
+      debug('fetchExperimentMetrics: appName=%s, appID=%s, branch=%s, parentWebUrl=%s', appName, appID, branch, parentWebUrl)
 
       // Format active status with mirror/live indicator
       const isMirror = rules && rules.length > 0 && rules[0].mirror === true
@@ -300,7 +306,7 @@ export default class Watch extends Command {
       const metricsText = await this.fetchUrl(metricsUrl)
       debug('Successfully fetched metrics, response length: %d bytes', metricsText.length)
 
-      const routerLabel = `${appName}-experiment@file`
+      const routerLabel = `${appID}-experiment@file`
       debug('Parsing Prometheus metrics for router label: %s', routerLabel)
       const metrics = this.parsePrometheusMetrics(metricsText, routerLabel)
 
@@ -341,7 +347,7 @@ export default class Watch extends Command {
 
       // Calculate throughput with exponential moving average for smoothing
       let throughput = ''
-      const key = appName
+      const key = appID
       const previous = this.previousCounters.get(key)
 
       if (previous) {
@@ -701,7 +707,7 @@ export default class Watch extends Command {
     cli.table(results, {
       active: {
         header: 'Active',
-        minWidth: 8,
+        minWidth: 15,
       },
       branch: {
         header: 'Branch',
@@ -709,7 +715,7 @@ export default class Watch extends Command {
       },
       route: {
         header: 'Route',
-        minWidth: 30,
+        minWidth: 20,
       },
       avgResponseTime: {
         header: 'Avg ms',
