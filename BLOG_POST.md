@@ -1,87 +1,91 @@
 ---
-title: "Test a Branch Against Real Production Traffic with the Experimental XP CLI Plugin"
+title: "Run Concurrent Review App Experiments on Staging with the Experimental XP CLI Plugin"
 author: Chap Ambrose
 category: Engineering
-tags: [CLI, Buildpacks, Developer Experience]
-teaser: "XP is an unofficial, experimental CLI plugin and buildpack that sends a slice of production traffic, or a mirrored copy of it, to a branch running alongside your app."
+tags: [CLI, Buildpacks, Review Apps, Developer Experience]
+teaser: "XP is an unofficial, experimental CLI plugin and buildpack that routes your staging app's traffic to review apps, so you can test many branches at once on a single staging URL."
 ---
 
-Staging tells you whether your code works. It doesn't tell you how that code behaves under real production traffic: unusual requests, uneven load, and the long tail of clients that only ever show up in production. Too often, the first real test happens right after you ship to everyone.
+[Review Apps](https://devcenter.heroku.com/articles/github-integration-review-apps) make it easy to spin up a disposable app for every pull request. But each review app lives on its own domain and only gets the traffic you send it: a few clicks, a test suite, a curl loop. Staging is where your real integrations, webhooks, and teammates point, yet the review app never sees any of that traffic.
 
-XP is an experiment in closing that gap. It's a Heroku CLI plugin plus a buildpack. Together they run a Git branch as its own app next to production, send it a controlled slice of production traffic (or a mirrored copy), and compare the two live in your terminal.
+XP is an experiment in closing that gap. It's a Heroku CLI plugin plus a buildpack that turns an existing review app into a **review app experiment**: a branch that gets routed traffic from your staging app, on your staging app's domain.
 
-**XP is not an officially supported Heroku feature.** A few of us at Heroku built it to explore an idea, and we're sharing it to get feedback. It comes with no SLA, no Heroku Support coverage, and no compatibility guarantees, and it may change or disappear at any time. Please report issues on [GitHub](https://github.com/chap/xp/issues), not through Heroku Support.
+**XP is not an officially supported Heroku feature.** A few of us at Heroku built it to explore an idea, and we're sharing it to get feedback. It comes with no SLA, no Heroku Support coverage, and no compatibility guarantees, and it may change or disappear at any time. Please report issues on [GitHub](https://github.com/heroku/xp/issues), not through Heroku Support.
 
-## How XP routes traffic
+## Run many branches on staging at once
 
-XP has two parts:
+Usually, staging runs one branch at a time, so teams queue up, take turns, or overwrite each other's deploys. XP removes that bottleneck. Every review app experiment gets its own routing rule, such as a header or query parameter, so many branches can share a single staging URL.
 
-- **The XP buildpack** runs a lightweight reverse proxy in front of your app inside each production web dyno. Based on your rules, it sends each request to your app, to an experiment app, or to both. It also records metrics for every route.
-- **The `xp` CLI plugin** creates the experiment apps and manages the routing rules. The rules live as JSON in a single config var, `HEROKU_XP`, on your production app.
+This matters most for agent teams. When several coding agents work in parallel, each on its own branch, they can't all deploy to staging. With XP, each agent gets its own review app experiment and its own routing key, much as [git worktrees](https://git-scm.com/docs/git-worktree) give each agent its own checkout of the same repo:
 
-When you create an experiment, the plugin adds the buildpack to your app if it isn't already there. It then creates an app for your branch with the same buildpacks and config vars, adds that app to your pipeline, and turns on [automatic deploys](https://devcenter.heroku.com/articles/github-integration#automatic-deploys) for the branch. If your pipeline already has a [Review App](https://devcenter.heroku.com/articles/github-integration-review-apps) for the branch, XP reuses it.
+```
+# Agent A's branch, reached with a header
+$ heroku xp:create -a my-app-staging -b agent-a-search \
+    --header x-xp=agent-a --mirror false
 
-## Create your first experiment
+# Agent B's branch, reached with a query parameter
+$ heroku xp:create -a my-app-staging -b agent-b-billing \
+    --query xp=agent-b --mirror false
+```
 
-You'll need an app that's [connected to GitHub](https://devcenter.heroku.com/articles/github-integration). Install the plugin, then point it at a branch:
+Every request without a routing key is served by staging as usual. Each agent adds its own key to reach its branch:
+
+```
+# Served by agent-a-search
+$ curl -H "x-xp: agent-a" https://my-app-staging.herokuapp.com/search
+
+# Served by agent-b-billing
+$ curl "https://my-app-staging.herokuapp.com/billing?xp=agent-b"
+```
+
+## Expose an existing review app to staging traffic
+
+XP sits on top of the review apps you already have. Run `xp:create` against your staging app with a branch name, and XP looks up that branch's review app in your pipeline. If the branch doesn't have one yet, XP creates it.
 
 ```
 # Install the XP plugin
-$ heroku plugins:install https://github.com/chap/xp
+$ heroku plugins:install https://github.com/heroku/xp
 
-# Create an experiment for a branch
-$ heroku xp:create --app my-app --branch new-checkout
+# Turn the branch's review app into a review app experiment
+$ heroku xp:create --app my-app-staging --branch new-checkout
 ```
 
-If you don't pass any routing flags, XP proposes cautious defaults and asks you to confirm them: `GET` requests only, 10% of traffic, and mirror mode on.
+Under the hood, XP adds its buildpack to the staging app. The buildpack runs a lightweight reverse proxy in each staging web dyno that sends each request to staging or to a review app experiment, based on rules stored in a single `HEROKU_XP` config var. Your review app keeps its own URL and [automatic deploys](https://devcenter.heroku.com/articles/github-integration#automatic-deploys), so every push to the branch updates the experiment.
 
-## Start in mirror mode, then go live
+## Mirror first, then serve
 
-In **mirror mode**, which is the default, XP sends matching requests to both apps but always returns production's response. Your branch handles real traffic, and users never see its failures or slowdowns.
-
-When the numbers look good, switch to **live mode** so the branch's responses actually reach users:
+If you don't pass any routing flags, XP proposes cautious defaults and asks you to confirm them: 10% of `GET` requests in **mirror mode**. Mirrored requests go to both apps, but staging's response is the one returned, so a broken branch never interrupts anyone using staging. Pass `--mirror false` when you want the review app experiment's responses returned to clients, as in the agent examples above.
 
 ```
-# Serve real responses from the experiment
-$ heroku xp:update --app my-app --branch new-checkout --mirror false
+# Send 25% of staging traffic to the branch and return its responses
+$ heroku xp:update -a my-app-staging -b new-checkout --weight 25 --mirror false
 ```
 
-You can also target traffic by weight, path, query parameter, or header:
+## Compare every branch side by side
+
+`heroku xp:watch` shows a live table that puts each review app experiment beside the staging baseline and refreshes every few seconds:
 
 ```
-# Send 25% of traffic to the branch
-$ heroku xp:update -a my-app -b new-checkout --weight 25
+$ heroku xp:watch --app my-app-staging
 
-# Send everything under /checkout
-$ heroku xp:update -a my-app -b new-checkout --path /checkout
-
-# Opt in with a header, handy for internal testing
-$ heroku xp:update -a my-app -b new-checkout --header x-xp=new-checkout
+Active      Branch           Route                 Avg ms  Error %  Req/s
+- baseline  main                                   212     0.4%     38.1
+✓ live      agent-a-search   header:x-xp: agent-a  187     0.3%     1.2
+✓ live      agent-b-billing  ?xp: agent-b          240     2.1%     0.8
+✓ mirror    new-checkout     10%                   198     0.2%     3.9
 ```
 
-## Watch your branch next to production
-
-`heroku xp:watch` shows a live table that puts each experiment beside your production baseline and refreshes every few seconds:
-
-```
-$ heroku xp:watch --app my-app
-
-Active      Branch        Route    Avg ms  Error %  Req/s  2xx   5xx
-- baseline  main                   212     0.4%     38.1   9120  37
-✓ mirror    new-checkout  10% GET  187     0.3%     3.9    934   3
-```
-
-Latency, error rate, throughput, and status codes appear side by side, so you can see at a glance whether the branch is better, worse, or the same. When you're done, `xp:stop` pauses routing to an experiment, and `xp:destroy` removes the experiment and deletes its app. Run `heroku help xp` to see every command.
+When a branch is done, `xp:stop` pauses its routing and `xp:destroy` removes its rule. The review app itself stays under your pipeline's control. Run `heroku help xp` to see every command.
 
 ## Know the tradeoffs
 
-Because XP is experimental, read these before you use it on an app that matters:
+Because XP is experimental, keep these in mind:
 
-- **It sits in your request path.** The proxy handles every production web request. A proxy bug or a mistaken rule can affect real traffic, so try XP on a low-risk app first.
-- **Experiment apps share production config.** They copy your config vars, including credentials and database URLs. Mirror mode doesn't prevent side effects: a mirrored `POST` still writes to your real database.
-- **Experiment apps cost money.** Each one runs its own dynos and is billed like any other app.
+- **It sits in your staging request path.** The proxy handles every staging web request, so a proxy bug or a mistaken rule affects everyone using staging.
+- **Review app experiments share staging's backing services.** When XP adopts an existing review app, it copies staging's config vars into it, so the branch reads from and writes to staging's database and add-ons. Mirror mode doesn't prevent side effects: a mirrored `POST` still writes.
+- **Rules are basic for now.** Rules match `GET` requests, and each rule uses a single header or query parameter.
 - **Nothing is guaranteed.** Commands, flags, and the `HEROKU_XP` format can change without notice, and XP may never become a product.
 
 ## Tell us what you think
 
-If you've wanted to try a branch on real traffic before you merge it, give XP a spin on a non-critical app. Then share what worked, what broke, and what you'd want from a feature like this at [github.com/chap/xp](https://github.com/chap/xp).
+If your team, or your agents, are tired of waiting their turn on staging, give XP a try. Share what worked, what broke, and what you'd want from a feature like this at [github.com/heroku/xp](https://github.com/heroku/xp).
