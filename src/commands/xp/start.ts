@@ -13,8 +13,8 @@ export default class Start extends Command {
   static description = 'Start (reactivate) a stopped experiment'
 
   static examples = [
-    `$ heroku xp:start --app prod-app --branch feature-xyz`,
-    `$ heroku xp:start -a prod-app -b new-ui`,
+    `$ heroku xp:start --app my-app-staging --branch feature-xyz`,
+    `$ heroku xp:start -a my-app-staging -b new-ui`,
   ]
 
   static flags: any = {

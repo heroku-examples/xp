@@ -15,7 +15,7 @@ export default class List extends Command {
 
   static examples = [
     `$ heroku xp:list --app xp-demo-staging`,
-    `$ heroku xp:list -a prod-app`,
+    `$ heroku xp:list -a my-app-staging`,
   ]
 
   static flags: any = {

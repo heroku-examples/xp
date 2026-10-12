@@ -10,7 +10,7 @@ export interface SimplifiedRule {
 }
 
 export interface SimplifiedExperimentEntry {
-  appName: string  // Experiment app name (e.g., "prod-app-exp-new-ui-a7f3d")
+  appName: string  // Experiment app name (e.g., "my-app-staging-exp-new-ui-a7f3d")
   appID: string  // App UUID
   parentApp: string  // Parent/source app name for composite key lookup
   branch: string

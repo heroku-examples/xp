@@ -4,8 +4,8 @@ export default class Config extends Command {
   static description = 'Display HEROKU_XP configuration'
 
   static examples = [
-    `$ heroku xp:config --app prod-app`,
-    `$ heroku xp:config -a prod-app`,
+    `$ heroku xp:config --app my-app-staging`,
+    `$ heroku xp:config -a my-app-staging`,
   ]
 
   static flags: any = {

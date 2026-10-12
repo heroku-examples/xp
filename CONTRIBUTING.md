@@ -297,7 +297,7 @@ heroku logs --app my-test-app --tail
 2. **Run linter**: Fix all linting issues (`yarn lint`)
 3. **Build successfully**: Ensure TypeScript compiles (`yarn build`)
 4. **Test manually**: Verify your changes with a real Heroku app
-5. **Update documentation**: Update README.md, FEATURES.md, or other docs if needed
+5. **Update documentation**: Update README.md or other docs if needed
 6. **Add tests**: Include tests for new features or bug fixes
 
 ### PR Description Template
@@ -491,7 +491,7 @@ All of these should be rejected with appropriate error messages.
 
 ## Questions?
 
-- **Documentation**: See [README.md](/Users/cambrose/Documents/xp/README.md), [QUICKSTART.md](/Users/cambrose/Documents/xp/QUICKSTART.md), [FEATURES.md](/Users/cambrose/Documents/xp/FEATURES.md)
+- **Documentation**: See [README.md](README.md)
 - **Issues**: Open an issue on GitHub
 - **Security**: Email security@heroku.com
 - **General questions**: Open a discussion on GitHub

@@ -15,9 +15,9 @@ export default class Update extends Command {
   static description = 'Update experiment routing configuration (HEROKU_XP only)'
 
   static examples = [
-    `$ heroku xp:update --app prod-app --branch feature-xyz --weight 20`,
-    `$ heroku xp:update -a prod-app -b new-ui --path /api/v2`,
-    `$ heroku xp:update -a prod-app -b test --weight 0`,
+    `$ heroku xp:update --app my-app-staging --branch feature-xyz --weight 20`,
+    `$ heroku xp:update -a my-app-staging -b new-ui --path /api/v2`,
+    `$ heroku xp:update -a my-app-staging -b test --weight 0`,
   ]
 
   static flags: any = {

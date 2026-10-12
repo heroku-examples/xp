@@ -49,7 +49,7 @@ export default class Watch extends Command {
 
   static examples = [
     `$ heroku xp:watch --app xp-demo-staging`,
-    `$ heroku xp:watch -a prod-app`,
+    `$ heroku xp:watch -a my-app-staging`,
   ]
 
   static flags: any = {

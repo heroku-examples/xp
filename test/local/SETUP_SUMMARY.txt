@@ -206,7 +206,7 @@ SUPPORT
 -------
 For issues or questions:
 - Review TEST_LOCAL.md troubleshooting section
-- Check parent README: /Users/cambrose/Documents/xp/EXPERIMENTS_README.md
+- Check parent README: README.md
 - View buildpack: /Users/cambrose/Documents/xp/buildpack/
 - Run integration tests: /Users/cambrose/Documents/xp/test/integration.sh
 

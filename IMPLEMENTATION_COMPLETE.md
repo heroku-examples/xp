@@ -142,7 +142,7 @@ All commands support both full and alias forms:
 ```bash
 # Create experiment from GitHub tarball
 heroku xp:create \
-  --app prod-app \
+  --app my-app-staging \
   --name exp-123 \
   --tarball https://github.com/myorg/myrepo/tarball/feature-xyz \
   --weight 10 \
@@ -150,22 +150,22 @@ heroku xp:create \
 
 # Copy from parent app
 heroku xp:create \
-  --app prod-app \
+  --app my-app-staging \
   --name exp-456 \
   --copy-parent \
   --header x-experiment=exp-456
 
 # List experiments
-heroku xp:list --app prod-app
+heroku xp:list --app my-app-staging
 
 # Watch metrics
-heroku xp:watch --app prod-app --name exp-123
+heroku xp:watch --app my-app-staging --name exp-123
 
 # Stop experiment
-heroku xp:stop --app prod-app --name exp-123
+heroku xp:stop --app my-app-staging --name exp-123
 
 # Destroy experiment
-heroku xp:destroy --app prod-app --name exp-123
+heroku xp:destroy --app my-app-staging --name exp-123
 ```
 
 ## App-Setups Integration
@@ -180,12 +180,12 @@ heroku xp:destroy --app prod-app --name exp-123
     "version": "v1.0.0"
   },
   "app": {
-    "name": "prod-app-exp-123"
+    "name": "my-app-staging-exp-123"
   },
   "overrides": {
     "env": {
       "HEROKU_EXPERIMENT_NAME": "exp-123",
-      "HEROKU_EXPERIMENT_PARENT": "prod-app"
+      "HEROKU_EXPERIMENT_PARENT": "my-app-staging"
     },
     "buildpacks": [
       {"url": "heroku/nodejs"},
@@ -204,7 +204,7 @@ heroku xp:destroy --app prod-app --name exp-123
   "experiments": {
     "exp-123": {
       "name": "exp-123",
-      "appName": "prod-app-exp-123",
+      "appName": "my-app-staging-exp-123",
       "createdAt": "2026-06-19T16:00:00Z",
       "status": "running",
       "routing": {

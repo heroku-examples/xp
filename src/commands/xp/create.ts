@@ -17,9 +17,9 @@ export default class Create extends Command {
   static description = 'Create a new experiment app with traffic routing'
 
   static examples = [
-    `$ heroku xp:create --app prod-app --branch feature-xyz`,
-    `$ heroku xp:create --app prod-app --branch new-ui --weight 10`,
-    `$ heroku xp:create --app prod-app --branch api-v2 --path /api/v2`,
+    `$ heroku xp:create --app my-app-staging --branch feature-xyz`,
+    `$ heroku xp:create --app my-app-staging --branch new-ui --weight 10`,
+    `$ heroku xp:create --app my-app-staging --branch api-v2 --path /api/v2`,
     `$ heroku xp:create -a xp-demo-staging -b 1-green --weight 50 --path '/*' --mirror false`,
   ]
 

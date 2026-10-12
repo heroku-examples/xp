@@ -37,12 +37,12 @@ export function readAndMigrateConfig(configVarValue: string): SimplifiedExperime
  *   "experiments": {
  *     "exp-feature-xyz": {
  *       "name": "exp-feature-xyz",
- *       "appName": "exp-feature-xyz-prod-app-a1b2",
+ *       "appName": "exp-feature-xyz-my-app-staging-a1b2",
  *       "createdAt": "2024-01-15T10:30:00Z",
  *       "updatedAt": "2024-01-15T10:30:00Z",
  *       "status": "active",
  *       "sourceType": "parent",
- *       "sourceApp": "prod-app",
+ *       "sourceApp": "my-app-staging",
  *       "sourceVersion": "feature-xyz",
  *       "routing": {
  *         "weight": 10,
@@ -50,7 +50,7 @@ export function readAndMigrateConfig(configVarValue: string): SimplifiedExperime
  *       },
  *       "mirror": false,
  *       "metadata": {
- *         "repo": "heroku/prod-app",
+ *         "repo": "heroku/my-app-staging",
  *         "description": "Experiment for branch feature-xyz"
  *       }
  *     }
@@ -63,13 +63,13 @@ export function readAndMigrateConfig(configVarValue: string): SimplifiedExperime
  *   "version": 2,
  *   "experiments": [
  *     {
- *       "appName": "prod-app",
+ *       "appName": "my-app-staging",
  *       "branch": "feature-xyz",
  *       "experimentVersion": 1,
  *       "createdAt": "2024-01-15T10:30:00Z",
  *       "updatedAt": "2024-01-15T10:30:00Z",
- *       "experimentAppName": "exp-feature-xyz-prod-app-a1b2",
- *       "repo": "heroku/prod-app",
+ *       "experimentAppName": "exp-feature-xyz-my-app-staging-a1b2",
+ *       "repo": "heroku/my-app-staging",
  *       "routes": {
  *         "weight": 10,
  *         "paths": ["/api/v2"]

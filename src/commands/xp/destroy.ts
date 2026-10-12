@@ -16,8 +16,8 @@ export default class Destroy extends Command {
   static description = 'Destroy an experiment and remove it from HEROKU_XP configuration'
 
   static examples = [
-    `$ heroku xp:destroy --app prod-app --branch feature-xyz`,
-    `$ heroku xp:destroy -a prod-app -b new-ui`,
+    `$ heroku xp:destroy --app my-app-staging --branch feature-xyz`,
+    `$ heroku xp:destroy -a my-app-staging -b new-ui`,
   ]
 
   static flags: any = {

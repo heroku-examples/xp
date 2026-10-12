@@ -1,353 +1,169 @@
-# Heroku Experiments (XP)
+# Heroku XP (Experimental)
 
-<a href="https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view"><img width="1860" height="1206" alt="image" src="https://github.com/user-attachments/assets/ed788267-a657-4819-8858-f06f500999ad" /></a>
+XP is an unofficial, experimental CLI plugin and buildpack that routes your staging app's traffic to review apps, so you can test many branches at once on a single staging URL.
 
+> **XP is not an officially supported Heroku feature.** It comes with no SLA, no Heroku Support coverage, and no compatibility guarantees, and it may change or disappear at any time. Please report issues on [GitHub](https://github.com/heroku/xp/issues), not through Heroku Support.
 
-[video](https://drive.google.com/file/d/1D_mtNkTVWTJvP9AwHAerH2EhD3VN-zKR/view) | [slides](https://docs.google.com/presentation/d/1KvxAeJ0Xug6wQNI0cdC4rvCINTaKzChldM2JTwtH5n4/edit?usp=sharing)
+See [BLOG_POST.md](BLOG_POST.md) for the background and motivation.
 
 ## Overview
 
-**Test features with real traffic before full rollout.** Unlike review apps (which are isolated sandboxes), experiments enable you to:
+[Review apps](https://devcenter.heroku.com/articles/github-integration-review-apps) make it easy to spin up a disposable app for every pull request, but each one lives on its own domain and only gets the traffic you send it. XP turns an existing review app into a **review app experiment**: a branch that gets routed traffic from your staging app, on your staging app's domain.
 
-- **Route a percentage of production traffic** to experimental builds (e.g., 10% of users see the new feature)
-- **Target specific user segments** using paths, query parameters, headers, or JSON body matching
-- **Mirror traffic** to both versions for zero-impact
-- **Share Config Vars and environment** inherit app configuration automatically
-- **Auto-expire experiments** with configurable time-to-live (TTL)
-- **Monitor real-time metrics** comparing experiment vs. production performance
+- **Run many branches on staging at once** by giving each review app experiment its own routing rule
+- **Route by weight, path, query parameter, or header**
+- **Mirror traffic** to a review app experiment while staging's response is still returned
+- **Compare branches side by side** with real-time metrics against the staging baseline
 
-## Quick Installation
+## Installation
 
 ```bash
-# Install the CLI plugin
-heroku plugins:install @heroku-cli/xp
+heroku plugins:install https://github.com/heroku/xp
 ```
 
-## Basic Usage
+## Usage
 
-### Create an Experiment
+### Create a Review App Experiment
+
+Run `xp:create` against your staging app with a branch name. XP looks up that branch's review app in your pipeline, and creates it if it doesn't exist yet.
 
 ```bash
-# Route 50% of traffic to a new feature branch
-heroku xp:create \
-  --app myapp \
-  --branch new-ui \
-  --weight 50
+heroku xp:create --app my-app-staging --branch new-checkout
 ```
 
-### Monitor Performance
+With no routing flags, XP proposes cautious defaults and asks you to confirm them: 10% of `GET` requests in mirror mode.
+
+### Route Many Branches Through One Staging URL
+
+Give each branch its own routing key and pass `--mirror false` so the review app's responses are returned to clients:
 
 ```bash
-# View real-time traffic comparison
-heroku xp:watch --app prod-app
+# Reached with a header
+heroku xp:create -a my-app-staging -b agent-a-search \
+  --header x-xp=agent-a --mirror false
+
+# Reached with a query parameter
+heroku xp:create -a my-app-staging -b agent-b-billing \
+  --query xp=agent-b --mirror false
 ```
 
-### Update Routing Rule
+Requests without a routing key are served by staging as usual:
 
 ```bash
-# Lower to 1% of traffic
-heroku xp:update -app myapp --branch new-ui \
-  --weight 1
+curl -H "x-xp: agent-a" https://my-app-staging.herokuapp.com/search
+curl "https://my-app-staging.herokuapp.com/billing?xp=agent-b"
 ```
 
-### Advanced Routing
+### Mirror First, Then Serve
+
+Mirrored requests go to both apps, but staging's response is the one returned, so a broken branch never interrupts anyone using staging. When you're ready, return the review app's responses instead:
 
 ```bash
-# Route specific paths to experiment
-heroku xp:create --app myapp --branch api-v2 \
-  --path /api/v2
+heroku xp:update -a my-app-staging -b new-checkout --weight 25 --mirror false
+```
 
-# Route beta users via JSON body content
-heroku xp:create --app myapp --branch beta-user \
-  --body-json '$.user.id == 123'
+### Compare Branches
 
-# Mirror all traffic to git tag to load test for 5 min
-heroku xp:create --app myapp --branch v1.1 \
-  --path / --mirror --ttl 5min
+```bash
+heroku xp:watch --app my-app-staging
+```
+
+```
+Active      Branch           Route                 Avg ms  Error %  Req/s
+- baseline  main                                   212     0.4%     38.1
+✓ live      agent-a-search   header:x-xp: agent-a  187     0.3%     1.2
+✓ live      agent-b-billing  ?xp: agent-b          240     2.1%     0.8
+✓ mirror    new-checkout     10%                   198     0.2%     3.9
 ```
 
 ### Clean Up
 
 ```bash
-# Stop routing traffic
-heroku xp:stop --app myapp --branch new-ui
+# Pause routing to the review app experiment
+heroku xp:stop --app my-app-staging --branch new-checkout
 
-# Destroy experiment completely
-heroku xp:destroy --app myapp --branch exp-new-ui --confirm prod-app
+# Remove its routing rule (the review app stays under your pipeline's control)
+heroku xp:destroy --app my-app-staging --branch new-checkout
 ```
-
-## Documentation
-
-- **[QUICKSTART.md](QUICKSTART.md)** - Get up and running in 5 minutes
-- **[FEATURES.md](FEATURES.md)** - Deep dive into JSONPath routing, traffic mirroring, and stats
-- **[EXAMPLE.md](EXAMPLE.md)** - Step-by-step walkthrough with real commands
-- **[SECURITY.md](SECURITY.md)** - Security policy, best practices, and audit history
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development setup and contribution guidelines
-
-## Architecture
-
-Heroku XP uses a **reverse proxy architecture** with Traefik running on your web dyno:
-
-```
-┌─────────────┐
-│  Internet   │
-└──────┬──────┘
-       │
-       ▼
-┌───────────────────────────────────┐
-│  Parent App Dyno     │
-│  ┌─────────────────────────────┐  │
-│  │  Traefik Proxy ($PORT)      │  │
-│  │  • Weight: 10%              │  │
-│  │  • Path: /exp/*             │  │
-│  │  • Query: ?exp=...          │  │
-│  │  • Header: x-exp=...        │  │
-│  └─────────┬───────────────────┘  │
-│            │                       │
-│      ┌─────┴──────┐               │
-│      │            │               │
-│   90%│         10%│               │
-│      ▼            ▼               │
-│  ┌────────┐  (external URL)      │
-│  │Prod App│                       │
-│  │ :5000  │                       │
-│  └────────┘                       │
-└────────────────┼───────────────────┘
-                 │
-                 ▼
-     ┌────────────────────────┐
-     │  Experiment App        │
-     │  myapp-exp-123-a7f3d   │
-     └────────────────────────┘
-```
-
-### How It Works
-
-1. **Plugin configures routing**: `heroku xp:create` updates `HEROKU_EXPERIMENTS` config var on parent app
-2. **Buildpack installs Traefik**: On deploy, the buildpack generates Traefik routing rules from `HEROKU_EXPERIMENTS`
-3. **Traefik routes traffic**: All traffic flows through Traefik on `$PORT`, which routes based on configured rules
-4. **Experiment app runs independently**: Separate Heroku app with its own dynos, config, and slug
-5. **Real-time metrics**: Traefik logs traffic stats for parent vs. experiment comparison
-
-## Routing Features
-
-### Weight-Based Routing
-
-Probabilistic load balancing - route a percentage of requests to the experiment:
-
-```bash
-heroku xp:create --app prod-app --name exp-gradual \
-  --copy-parent --weight 10
-```
-
-### Path-Based Routing
-
-Route specific URL paths to the experiment:
-
-```bash
-heroku xp:create --app prod-app --name exp-new-checkout \
-  --tarball https://github.com/myorg/myrepo/tarball/new-checkout \
-  --path /checkout
-```
-
-### Query Parameter Routing
-
-Route requests with specific query parameters:
-
-```bash
-heroku xp:create --app prod-app --name exp-beta \
-  --copy-parent --query beta=true
-```
-
-### Header-Based Routing
-
-Route requests with specific HTTP headers:
-
-```bash
-heroku xp:create --app prod-app --name exp-mobile \
-  --copy-parent --header x-mobile-app=true
-```
-
-### JSON Body Routing
-
-Route based on JSON request body content using JSONPath:
-
-```bash
-heroku xp:create --app prod-app --name exp-enterprise \
-  --copy-parent --body-json '$.account.tier == "enterprise"'
-```
-
-### Traffic Mirroring
-
-Send traffic to BOTH parent and experiment (users always get parent response):
-
-```bash
-heroku xp:create --app prod-app --name exp-load-test \
-  --copy-parent --mirror-traffic
-```
-
-See [FEATURES.md](FEATURES.md) for detailed routing documentation.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `heroku xp:create` | Create a new experiment with routing configuration |
-| `heroku xp:list` | List all experiments for a parent app |
-| `heroku xp:info` | Show detailed information and traffic statistics |
-| `heroku xp:update` | Update routing configuration for an experiment |
-| `heroku xp:start` | Resume routing traffic to a stopped experiment |
-| `heroku xp:stop` | Stop routing traffic (keeps app running) |
-| `heroku xp:destroy` | Permanently delete an experiment and its app |
-| `heroku xp:watch` | Watch experiment traffic in real-time |
+| `heroku xp:create` | Turn a branch's review app into a review app experiment |
+| `heroku xp:list` | List review app experiments for a staging app |
+| `heroku xp:update` | Update routing for a review app experiment |
+| `heroku xp:start` | Resume routing to a stopped review app experiment |
+| `heroku xp:stop` | Pause routing (keeps the review app running) |
+| `heroku xp:destroy` | Remove a review app experiment's routing rule |
+| `heroku xp:watch` | Watch traffic and metrics in real time |
+| `heroku xp:config` | Show the routing configuration |
 
-All commands support both `xp:` and `experiments:` prefixes.
+Run `heroku help xp` or `heroku xp:COMMAND --help` for details.
 
-Run `heroku xp:COMMAND --help` for detailed usage information.
+## How It Works
 
-## Local Testing
+XP adds its buildpack to the staging app. The buildpack runs a lightweight reverse proxy (Traefik) in each staging web dyno that sends each request to staging or to a review app experiment, based on rules stored in a single `HEROKU_XP` config var.
 
-Test experiments locally before deploying to production:
-
-```bash
-# Start local Traefik proxy
-cd test/local
-./start-local-proxy.sh
-
-# Configure experiments
-export HEROKU_EXPERIMENTS='{"version":1,"experiments":{...}}'
-
-# Test routing
-curl http://localhost:5000
+```
+Internet
+   │
+   ▼
+┌──────────────────────────────────┐
+│ Staging web dyno                 │
+│  ┌────────────────────────────┐  │
+│  │ Traefik proxy ($PORT)      │  │
+│  │  • Weight                  │  │
+│  │  • Path                    │  │
+│  │  • Query                   │  │
+│  │  • Header                  │  │
+│  └─────┬───────────────┬──────┘  │
+│        │               │         │
+│        ▼               │         │
+│   Staging app          │         │
+│     :5000              │         │
+└────────────────────────┼─────────┘
+                         ▼
+              Review app experiment
+              (the branch's review app)
 ```
 
-See [test/local/README.md](test/local/README.md) for complete local testing setup.
+Your review app keeps its own URL and [automatic deploys](https://devcenter.heroku.com/articles/github-integration#automatic-deploys), so every push to the branch updates the experiment.
 
-## Use Cases
+## Tradeoffs
 
-### Gradual Rollout
-
-Test a new feature with progressively more traffic:
-
-```bash
-# Step 1: Start with 5%
-heroku xp:create --app prod-app --name exp-new-ui --weight 5 --tarball URL
-
-# Step 2: Monitor metrics
-heroku xp:info --app prod-app --name exp-new-ui --period 24h
-
-# Step 3: Increase to 25% if metrics look good
-heroku xp:update --app prod-app --name exp-new-ui --weight 25
-
-# Step 4: Full rollout - merge to main and destroy experiment
-```
-
-### Beta User Testing
-
-Route only beta users to experiment:
-
-```bash
-heroku xp:create --app prod-app --name exp-beta-features \
-  --copy-parent \
-  --body-json '$.user.beta == true' \
-  --header x-beta=true
-```
-
-### API Versioning
-
-Test new API version on specific path:
-
-```bash
-heroku xp:create --app prod-app --name exp-api-v2 \
-  --tarball https://github.com/myorg/myrepo/tarball/api-v2 \
-  --path /api/v2
-```
-
-### Load Testing
-
-Test performance with production traffic without user impact:
-
-```bash
-heroku xp:create --app prod-app --name exp-load-test \
-  --copy-parent \
-  --mirror-traffic \
-  --ttl 2h
-```
-
-See [EXAMPLE.md](EXAMPLE.md) for detailed workflow examples.
-
-## Differences from Review Apps
-
-| Feature | Review Apps | Heroku XP |
-|---------|-------------|-----------|
-| **Purpose** | Pre-merge testing in isolated environments | Production A/B testing with real traffic |
-| **Requires Pipeline** | Yes | No, works with any Heroku app |
-| **Traffic Routing** | None (manual access only) | Weight, path, query, headers, JSON body |
-| **Production Traffic** | No | Receives real production traffic |
-| **Metrics** | Basic dyno stats only | Real-time traffic comparison |
-| **Traffic Mirroring** | Not supported | Supported |
-| **Source** | Automatically from PR branches | Flexible: tarballs, parent slug, or manual |
-| **Use Case** | Testing before merge | Testing in production with controlled exposure |
+- **XP sits in your staging request path.** The proxy handles every staging web request, so a proxy bug or a mistaken rule affects everyone using staging.
+- **Review apps don't share staging's config vars or add-ons.** By default, review apps provision their own add-ons, which can cause requests to fail due to missing records or configuration. Pipelines can be configured with [sensitive config vars](https://devcenter.heroku.com/articles/github-integration-review-apps#sensitive-config-vars).
+- **Nothing is guaranteed.** Commands, flags, and the `HEROKU_XP` format can change without notice, and XP may never become a product.
 
 ## Limitations
 
-- Maximum 50 experiments per app (plugin enforced)
+- Maximum 50 review app experiments per staging app (plugin enforced)
 - 32KB config var size limit (Heroku platform limit)
-- Routing changes require deploy to take effect (not runtime updates)
-- Stats reset on dyno restart (not persistent)
-- Experiment apps must be publicly accessible (no VPC peering support)
-- JSON body routing adds ~5-10ms latency (body buffering required)
+- Routing changes require a deploy to take effect
+- Stats reset on dyno restart
 
-## Security
+## Local Testing
 
-Heroku XP implements comprehensive security measures:
+See [test/local/README.md](test/local/README.md) for running the proxy and routing rules locally with Docker.
 
-- **Command injection protection** - All shell inputs properly escaped
-- **JSON prototype pollution protection** - Safe parsing with validation
-- **Path traversal prevention** - Normalized and validated paths
-- **CRLF injection prevention** - Header value validation
-- **Traefik binary verification** - SHA256 checksum validation
-- **Input length limits** - Maximum constraints on all user inputs
-- **Resource limits** - Maximum 50 experiments to prevent config exhaustion
+## Documentation
 
-See [SECURITY.md](SECURITY.md) for complete security policy and best practices.
-
-### Reporting Security Issues
-
-For security vulnerabilities, please email **security@heroku.com**. Do not open public GitHub issues.
+- **[EXAMPLE.md](EXAMPLE.md)** - Step-by-step walkthrough
+- **[SECURITY.md](SECURITY.md)** - Security policy and best practices
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development setup and contribution guidelines
 
 ## Requirements
 
-- Heroku CLI installed
+- Heroku CLI
 - Node.js >= 18.0.0 (for plugin development)
-- A deployed Heroku app
+- A staging app in a pipeline with review apps enabled
 - Git repository
 
-## Contributing
+## Security
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup
-- Running tests
-- Code style guidelines
-- Pull request process
-- Security testing
+For security vulnerabilities, email **security@heroku.com**. Do not open public GitHub issues. See [SECURITY.md](SECURITY.md).
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-## Support
-
-- **Documentation**: See documentation links above
-- **Issues**: [GitHub Issues](https://github.com/heroku/experiments/issues)
-- **Questions**: [GitHub Discussions](https://github.com/heroku/experiments/discussions)
-- **Security**: security@heroku.com
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
-
----
-
-**Ready to experiment?** Start with [QUICKSTART.md](QUICKSTART.md) to get up and running in 5 minutes.

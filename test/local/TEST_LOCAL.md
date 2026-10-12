@@ -16,7 +16,7 @@ This guide explains how to test traffic routing locally using Docker to simulate
 
 ## Overview
 
-This Docker-based setup simulates the Heroku XP plugin's production architecture:
+This Docker-based setup simulates the Heroku XP plugin's architecture:
 
 - **Parent app**: Runs Traefik proxy on port 8080, routes to experiments
 - **Experiment apps**: Separate containers simulating experiment dynos
@@ -905,7 +905,7 @@ done | sort | uniq -c
 
 - **Traefik Documentation**: https://doc.traefik.io/traefik/
 - **Docker Compose Reference**: https://docs.docker.com/compose/
-- **Heroku XP Plugin README**: `/Users/cambrose/Documents/xp/EXPERIMENTS_README.md`
+- **Heroku XP Plugin README**: `README.md`
 - **Integration Tests**: `/Users/cambrose/Documents/xp/test/integration.sh`
 
 ## Next Steps
@@ -920,4 +920,4 @@ done | sort | uniq -c
 
 For issues or questions about the XP plugin:
 - Open an issue: https://github.com/heroku/experiments/issues
-- Review plugin docs: See `EXPERIMENTS_README.md`
+- Review plugin docs: See `README.md`

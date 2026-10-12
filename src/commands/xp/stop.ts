@@ -16,8 +16,8 @@ export default class Stop extends Command {
   static description = 'Stop an experiment by setting active: false in HEROKU_XP configuration'
 
   static examples = [
-    `$ heroku xp:stop --app prod-app --branch feature-xyz`,
-    `$ heroku xp:stop -a prod-app -b new-ui`,
+    `$ heroku xp:stop --app my-app-staging --branch feature-xyz`,
+    `$ heroku xp:stop -a my-app-staging -b new-ui`,
   ]
 
   static flags: any = {

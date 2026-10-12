@@ -24,41 +24,41 @@ heroku xp:stop --app <parent-app> --branch <branch-name>
 ### Stop an active experiment
 
 ```bash
-$ heroku xp:stop --app prod-app --branch feature-xyz
+$ heroku xp:stop --app my-app-staging --branch feature-xyz
 Fetching experiment configuration... ✓
-Finding experiment for branch "feature-xyz"... ✓ Found: prod-app-feature-xyz-a1b2c3
+Finding experiment for branch "feature-xyz"... ✓ Found: my-app-staging-feature-xyz-a1b2c3
 Stopping experiment... ✓
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ Experiment stopped successfully!
 
-  Parent App:     prod-app
+  Parent App:     my-app-staging
   Branch:         feature-xyz
-  Experiment App: prod-app-feature-xyz-a1b2c3
+  Experiment App: my-app-staging-feature-xyz-a1b2c3
 
 The experiment is now inactive and will not receive traffic.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 To reactivate this experiment, run:
-  heroku xp:start --app prod-app --branch feature-xyz
+  heroku xp:start --app my-app-staging --branch feature-xyz
 
 To permanently remove this experiment, run:
-  heroku xp:destroy --app prod-app --branch feature-xyz
+  heroku xp:destroy --app my-app-staging --branch feature-xyz
 ```
 
 ### Stop an already inactive experiment
 
 ```bash
-$ heroku xp:stop --app prod-app --branch feature-xyz
+$ heroku xp:stop --app my-app-staging --branch feature-xyz
 Fetching experiment configuration... ✓
-Finding experiment for branch "feature-xyz"... ✓ Found: prod-app-feature-xyz-a1b2c3
+Finding experiment for branch "feature-xyz"... ✓ Found: my-app-staging-feature-xyz-a1b2c3
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ℹ️  Experiment is already inactive
 
-  Parent App:     prod-app
+  Parent App:     my-app-staging
   Branch:         feature-xyz
-  Experiment App: prod-app-feature-xyz-a1b2c3
+  Experiment App: my-app-staging-feature-xyz-a1b2c3
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -99,15 +99,15 @@ This allows multiple experiments with the same branch name on different parent a
 ### Experiment Not Found
 
 ```bash
-$ heroku xp:stop --app prod-app --branch nonexistent
-Error: No experiment found for branch "nonexistent" on app "prod-app".
-Run 'heroku xp:list --app prod-app' to see all experiments.
+$ heroku xp:stop --app my-app-staging --branch nonexistent
+Error: No experiment found for branch "nonexistent" on app "my-app-staging".
+Run 'heroku xp:list --app my-app-staging' to see all experiments.
 ```
 
 ### Invalid JSON
 
 ```bash
-$ heroku xp:stop --app prod-app --branch feature-xyz
+$ heroku xp:stop --app my-app-staging --branch feature-xyz
 Error: Failed to parse HEROKU_XP config: Unexpected token { in JSON at position 10
 ```
 
