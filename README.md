@@ -140,7 +140,7 @@ Your review app keeps its own URL and [automatic deploys](https://devcenter.hero
 
 - Maximum 50 review app experiments per staging app (plugin enforced)
 - 32KB config var size limit (Heroku platform limit)
-- Routing changes require a deploy to take effect
+- Routing changes require a restart to take effect
 - Stats reset on dyno restart
 
 ## Local Testing
