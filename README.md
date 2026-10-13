@@ -2,9 +2,7 @@
 
 XP is an unofficial, experimental CLI plugin and buildpack that routes your staging app's traffic to review apps, so you can test many branches at once on a single staging URL.
 
-> **XP is not an officially supported Heroku feature.** It comes with no SLA, no Heroku Support coverage, and no compatibility guarantees, and it may change or disappear at any time. Please report issues on [GitHub](https://github.com/heroku/xp/issues), not through Heroku Support.
-
-See [BLOG_POST.md](BLOG_POST.md) for the background and motivation.
+> **XP is not an officially supported Heroku feature.** It comes with no SLA, no Heroku Support coverage, and no compatibility guarantees, and it may change or disappear at any time. Please report issues on [GitHub](https://github.com/heroku-examples/xp/issues), not through Heroku Support.
 
 ## Overview
 
@@ -18,7 +16,7 @@ See [BLOG_POST.md](BLOG_POST.md) for the background and motivation.
 ## Installation
 
 ```bash
-heroku plugins:install https://github.com/heroku/xp
+heroku plugins:install https://github.com/heroku-examples/xp
 ```
 
 ## Usage
@@ -146,12 +144,6 @@ Your review app keeps its own URL and [automatic deploys](https://devcenter.hero
 ## Local Testing
 
 See [test/local/README.md](test/local/README.md) for running the proxy and routing rules locally with Docker.
-
-## Documentation
-
-- **[EXAMPLE.md](EXAMPLE.md)** - Step-by-step walkthrough
-- **[SECURITY.md](SECURITY.md)** - Security policy and best practices
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Development setup and contribution guidelines
 
 ## Requirements
 
