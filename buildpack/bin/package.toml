@@ -1,0 +1,10 @@
+# Meta buildpack to combine dyno-proxy and plugin src
+[buildpack]
+uri = "."
+
+[[dependencies]]
+uri = "docker://ghcr.io/heroku-examples/dyno-proxy-buildpack"
+
+# buildpack/bin/build runs after dyno-proxy build
+[[dependencies]]
+uri = "../"

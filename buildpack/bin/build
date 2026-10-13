@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# build — XP buildpack, run AFTER dyno-proxy.
+#
+# dyno-proxy runs first (it precedes us in the order group) and exports
+# DYNO_PROXY_DIR via its layer env. We rely on that here, for the XP startup hook.
+
+set -euo pipefail
+
+PROG="xp"
+
+echo "-----> Running XP after dyno-proxy"
+
+# Proof of ordering: DYNO_PROXY_DIR is only set if dyno-proxy built before us.
+if [ -z "${DYNO_PROXY_DIR:-}" ]; then
+	echo " !     ${PROG}: DYNO_PROXY_DIR is not set — dyno-proxy did not run first" >&2
+	exit 1
+fi
+echo "       dyno-proxy present at: ${DYNO_PROXY_DIR}"
+
+# Resolve this buildpack's directory (lifecycle sets CNB_BUILDPACK_DIR; fall
+# back to the script location for local runs).
+BUILDPACK_DIR="${CNB_BUILDPACK_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+# The dyno-proxy-start-hook startup hook is REQUIRED: it is what converts
+# HEROKU_XP into project.toml routes at boot. dyno-proxy execs it directly
+# from its own directory. It is a compiled binary checked in per platform as
+# bin/dyno-proxy-start-hook-linux-<arch> (build with
+# `GOOS=linux GOARCH=<arch> go build` in dyno-proxy-start-hook/); install the one for this build's arch (the
+# lifecycle sets CNB_TARGET_ARCH; fall back to uname -m for local runs).
+# Fail loudly if it is missing rather than silently shipping a proxy with no
+# XP routing.
+case "${CNB_TARGET_ARCH:-$(uname -m)}" in
+x86_64 | amd64) hook_arch="amd64" ;;
+aarch64 | arm64) hook_arch="arm64" ;;
+*)
+	echo " !     ${PROG}: unsupported architecture for the startup hook: ${CNB_TARGET_ARCH:-$(uname -m)}" >&2
+	exit 1
+	;;
+esac
+hook="${BUILDPACK_DIR}/bin/dyno-proxy-start-hook-linux-${hook_arch}"
+if [ ! -f "${hook}" ]; then
+	echo " !     ${PROG}: startup hook not found at ${hook}" >&2
+	echo " !     ${PROG}: build it with: cd dyno-proxy-start-hook && GOOS=linux GOARCH=${hook_arch} go build -o ../bin/dyno-proxy-start-hook-linux-${hook_arch} ." >&2
+	exit 1
+fi
+echo "       installing $(basename "${hook}") -> ${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
+cp "${hook}" "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
+chmod +x "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
+
+exit 0

@@ -47,3 +47,8 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# Buildpack startup hook binaries (built by `make hook` / CI)
+/buildpack/bin/dyno-proxy-start-hook
+/buildpack/bin/dyno-proxy-start-hook-linux-*
+/xp-buildpack.tgz

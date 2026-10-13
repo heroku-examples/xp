@@ -1,1 +1,96 @@
-The `bin/compile` script for the experiments buildpack has been created and updated to support both `HEROKU_EXPERIMENTS` and `HEROKU_PREVIEWS` configuration variables.
+#!/usr/bin/env bash
+#
+# compile — classic buildpack analog of bin/build.
+#
+#   1. Download the dyno-proxy classic buildpack tarball.
+#   2. Run its bin/compile to install dyno-proxy into the slug.
+#   3. Copy the XP startup hook alongside the proxy, like bin/build does.
+
+set -e
+
+PROG="xp"
+
+# Classic buildpack contract: bin/compile <BUILD_DIR> <CACHE_DIR> <ENV_DIR>.
+BUILD_DIR="$1"
+CACHE_DIR="$2"
+ENV_DIR="$3"
+
+# Resolve this buildpack's directory (parent of bin/).
+BUILDPACK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+mkdir -p "$CACHE_DIR"
+
+# ---------------------------------------------------------------------------
+# 1. Download and run the dyno-proxy classic buildpack.
+#
+# The tarball is a self-contained classic buildpack (bin/compile, bin/detect,
+# and the dyno-proxy binaries). Its bin/compile installs dyno-proxy into
+# $BUILD_DIR/vendor/dyno-proxy and rewrites the slug's Procfile web line.
+# ---------------------------------------------------------------------------
+DYNO_PROXY_BUILDPACK_URL="${DYNO_PROXY_BUILDPACK_URL:-https://dyno-proxy-buildpack-staging-2ca242c0008d.herokuapp.com/buildpack-v1alpha1.tgz}"
+DYNO_PROXY_BP_DIR="$CACHE_DIR/dyno-proxy-buildpack"
+
+echo "-----> Installing dyno-proxy"
+echo "       downloading ${DYNO_PROXY_BUILDPACK_URL}"
+
+rm -rf "$DYNO_PROXY_BP_DIR"
+mkdir -p "$DYNO_PROXY_BP_DIR"
+tarball="$(mktemp)"
+curl -sSf --location --retry 3 --retry-connrefused --connect-timeout 10 \
+	"$DYNO_PROXY_BUILDPACK_URL" -o "$tarball"
+tar -xzf "$tarball" -C "$DYNO_PROXY_BP_DIR"
+rm -f "$tarball"
+
+if [ ! -x "$DYNO_PROXY_BP_DIR/bin/compile" ]; then
+	echo " !     ${PROG}: dyno-proxy buildpack has no executable bin/compile" >&2
+	exit 1
+fi
+
+# Run the dyno-proxy buildpack's compile with the same positional args we were
+# given, so it installs into the same slug/cache we do.
+"$DYNO_PROXY_BP_DIR/bin/compile" "$BUILD_DIR" "$CACHE_DIR" "$ENV_DIR"
+
+# ---------------------------------------------------------------------------
+# 2. Install the XP startup hook, mirroring bin/build.
+#
+# The classic dyno-proxy compile installs into $BUILD_DIR/vendor/dyno-proxy;
+# that is this flow's analog of the CNB DYNO_PROXY_DIR that bin/build reads from
+# the dyno-proxy layer env.
+# ---------------------------------------------------------------------------
+DYNO_PROXY_DIR="$BUILD_DIR/vendor/dyno-proxy"
+
+echo "-----> Running XP after dyno-proxy"
+
+if [ ! -d "$DYNO_PROXY_DIR" ]; then
+	echo " !     ${PROG}: dyno-proxy not installed at ${DYNO_PROXY_DIR}" >&2
+	exit 1
+fi
+echo "       dyno-proxy present at: ${DYNO_PROXY_DIR}"
+
+# The dyno-proxy-start-hook startup hook is REQUIRED: it is what converts
+# HEROKU_XP into project.toml routes at boot. dyno-proxy execs it directly
+# from its own directory. It is a compiled binary checked in per platform as
+# bin/dyno-proxy-start-hook-linux-<arch> (build with
+# `GOOS=linux GOARCH=<arch> go build` in dyno-proxy-start-hook/); install the one for this build's arch (the build
+# dyno runs on the same arch as the app's dynos).
+# Fail loudly if it is missing rather than silently shipping a proxy with no
+# XP routing.
+case "$(uname -m)" in
+x86_64 | amd64) hook_arch="amd64" ;;
+aarch64 | arm64) hook_arch="arm64" ;;
+*)
+	echo " !     ${PROG}: unsupported architecture for the startup hook: $(uname -m)" >&2
+	exit 1
+	;;
+esac
+hook="${BUILDPACK_DIR}/bin/dyno-proxy-start-hook-linux-${hook_arch}"
+if [ ! -f "${hook}" ]; then
+	echo " !     ${PROG}: startup hook not found at ${hook}" >&2
+	echo " !     ${PROG}: build it with: cd dyno-proxy-start-hook && GOOS=linux GOARCH=${hook_arch} go build -o ../bin/dyno-proxy-start-hook-linux-${hook_arch} ." >&2
+	exit 1
+fi
+echo "       installing $(basename "${hook}") -> ${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
+cp "${hook}" "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
+chmod +x "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
+
+exit 0
