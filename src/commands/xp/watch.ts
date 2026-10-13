@@ -26,7 +26,6 @@ interface MetricCounters {
   total5xx: number
   totalErrors: number
   timestamp: number
-  smoothedRps?: number  // Exponential moving average of req/s
 }
 
 interface ExperimentMetrics {
@@ -36,8 +35,6 @@ interface ExperimentMetrics {
   active: string
   route: string
   avgResponseTime: string
-  errorRate: string
-  throughput: string
   total2xx: string
   total3xx: string
   total4xx: string
@@ -57,7 +54,6 @@ export default class Watch extends Command {
     remote: flags.remote(),
   }
 
-  private previousCounters: Map<string, MetricCounters> = new Map()
   private isRunning = false
   private currentMetrics?: {
     appName: string
@@ -143,7 +139,7 @@ export default class Watch extends Command {
 
       // Fetch control (parent app) metrics
       debug('Fetching control metrics for parent app: %s (id: %s)', appName, parentAppId)
-      const controlMetrics = await this.fetchControlMetrics(appName, parentAppId, parentWebUrl, auth)
+      const controlMetrics = await this.fetchControlMetrics(appName, parentAppId, parentWebUrl, await this.getParentBranch(parentAppId), auth)
       metricsResults.push(controlMetrics)
 
       // Store metrics results for redrawing during countdown
@@ -163,10 +159,25 @@ export default class Watch extends Command {
     }
   }
 
+  // The branch the parent app deploys from, if its GitHub connection has one.
+  private async getParentBranch(appId: string): Promise<string> {
+    try {
+      const kolkrabbiUrl = process.env.HEROKU_KOLKRABBI_URL || 'https://kolkrabbi.heroku.com'
+      const {body} = await this.heroku.get<{branch?: string}>(`${kolkrabbiUrl}/apps/${appId}/github`, {
+        hostname: new URL(kolkrabbiUrl).hostname,
+      })
+      return body.branch || '-'
+    } catch (error: any) {
+      debug('Could not read parent app branch: %s', error.message)
+      return '-'
+    }
+  }
+
   private async fetchControlMetrics(
     appName: string,
     appId: string,
     parentWebUrl: string,
+    parentBranch: string,
     auth?: string
   ): Promise<ExperimentMetrics> {
     try {
@@ -192,12 +203,10 @@ export default class Watch extends Command {
         debug('No metrics found for control router labels: %s, %s', routerLabel1, routerLabel2)
         return {
           experiment: appName,
-          branch: '-',
-          active: '- baseline',
+          branch: parentBranch,
+          active: '✓ live',
           route: '-',
           avgResponseTime: '',
-          errorRate: '',
-          throughput: '',
           total2xx: '0',
           total3xx: '0',
           total4xx: '0',
@@ -208,6 +217,8 @@ export default class Watch extends Command {
       debug('Parsed control metrics: durationSum=%f, durationCount=%f, total200=%f, totalErrors=%f',
         metrics.durationSum, metrics.durationCount, metrics.total200, metrics.totalErrors)
 
+      const pct = this.percentOf(metrics)
+
       // Calculate average response time (just the number, no units)
       const avgResponseTime = metrics.durationCount > 0
         ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2)
@@ -215,73 +226,25 @@ export default class Watch extends Command {
       debug('Calculated avgResponseTime: %s (durationSum=%f, durationCount=%f)',
         avgResponseTime, metrics.durationSum, metrics.durationCount)
 
-      // Calculate error rate (just the number, no % sign)
-      const totalRequests = metrics.total200 + metrics.totalErrors
-      const errorRate = totalRequests > 0
-        ? ((metrics.totalErrors / totalRequests) * 100).toFixed(2)
-        : '0.00'
-      debug('Calculated errorRate: %s (totalErrors=%f, totalRequests=%f)',
-        errorRate, metrics.totalErrors, totalRequests)
-
-      // Calculate throughput with exponential moving average for smoothing
-      let throughput = ''
-      const key = `${appId}-control`
-      const previous = this.previousCounters.get(key)
-
-      if (previous) {
-        const timeDiff = (metrics.timestamp - previous.timestamp) / 1000 // seconds
-        const requestDiff = (metrics.total2xx - previous.total2xx) +
-                           (metrics.total3xx - previous.total3xx) +
-                           (metrics.total4xx - previous.total4xx) +
-                           (metrics.total5xx - previous.total5xx)
-
-        debug('Calculating throughput: requestDiff=%f, timeDiff=%fs',
-          requestDiff, timeDiff)
-
-        if (timeDiff > 0) {
-          const instantRps = requestDiff / timeDiff
-          // Use exponential moving average (EMA) with alpha=0.3 for smoothing
-          // smoothedRps = alpha * instantRps + (1 - alpha) * previousSmoothedRps
-          const alpha = 0.3
-          const smoothedRps = previous.smoothedRps !== undefined
-            ? alpha * instantRps + (1 - alpha) * previous.smoothedRps
-            : instantRps
-
-          metrics.smoothedRps = smoothedRps
-          throughput = smoothedRps >= 0 ? smoothedRps.toFixed(2) : '0.00'
-          debug('Calculated throughput: instant=%f, smoothed=%s', instantRps, throughput)
-        }
-      } else {
-        debug('No previous counters found for %s, throughput will be blank', key)
-      }
-
-      // Store current counters for next iteration
-      this.previousCounters.set(key, metrics)
-      debug('Stored current counters for next iteration')
-
       return {
         experiment: appName,
-        branch: '-',
-        active: '- baseline',
+        branch: parentBranch,
+        active: '✓ live',
         route: '-',
         avgResponseTime,
-        errorRate,
-        throughput,
-        total2xx: metrics.total2xx.toString(),
-        total3xx: metrics.total3xx.toString(),
-        total4xx: metrics.total4xx.toString(),
-        total5xx: metrics.total5xx.toString(),
+        total2xx: pct(metrics.total2xx),
+        total3xx: pct(metrics.total3xx),
+        total4xx: pct(metrics.total4xx),
+        total5xx: pct(metrics.total5xx),
       }
     } catch (error: any) {
       debug('Error in fetchControlMetrics: %s', error.message)
       return {
         experiment: appName,
-        branch: '-',
-        active: '- baseline',
+        branch: parentBranch,
+        active: '✓ live',
         route: '-',
         avgResponseTime: '',
-        errorRate: '',
-        throughput: '',
         total2xx: '0',
         total3xx: '0',
         total4xx: '0',
@@ -324,8 +287,6 @@ export default class Watch extends Command {
           active: activeStatus,
           route: routeStr,
           avgResponseTime: '',
-          errorRate: '',
-          throughput: '',
           total2xx: '0',
           total3xx: '0',
           total4xx: '0',
@@ -336,6 +297,8 @@ export default class Watch extends Command {
       debug('Parsed metrics: durationSum=%f, durationCount=%f, total200=%f, totalErrors=%f',
         metrics.durationSum, metrics.durationCount, metrics.total200, metrics.totalErrors)
 
+      const pct = this.percentOf(metrics)
+
       // Calculate average response time (just the number, no units)
       const avgResponseTime = metrics.durationCount > 0
         ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2)
@@ -343,62 +306,16 @@ export default class Watch extends Command {
       debug('Calculated avgResponseTime: %s (durationSum=%f, durationCount=%f)',
         avgResponseTime, metrics.durationSum, metrics.durationCount)
 
-      // Calculate error rate (just the number, no % sign)
-      const totalRequests = metrics.total200 + metrics.totalErrors
-      const errorRate = totalRequests > 0
-        ? ((metrics.totalErrors / totalRequests) * 100).toFixed(2)
-        : '0.00'
-      debug('Calculated errorRate: %s (totalErrors=%f, totalRequests=%f)',
-        errorRate, metrics.totalErrors, totalRequests)
-
-      // Calculate throughput with exponential moving average for smoothing
-      let throughput = ''
-      const key = appID
-      const previous = this.previousCounters.get(key)
-
-      if (previous) {
-        const timeDiff = (metrics.timestamp - previous.timestamp) / 1000 // seconds
-        const requestDiff = (metrics.total2xx - previous.total2xx) +
-                           (metrics.total3xx - previous.total3xx) +
-                           (metrics.total4xx - previous.total4xx) +
-                           (metrics.total5xx - previous.total5xx)
-
-        debug('Calculating throughput: requestDiff=%f, timeDiff=%fs',
-          requestDiff, timeDiff)
-
-        if (timeDiff > 0) {
-          const instantRps = requestDiff / timeDiff
-          // Use exponential moving average (EMA) with alpha=0.3 for smoothing
-          // smoothedRps = alpha * instantRps + (1 - alpha) * previousSmoothedRps
-          const alpha = 0.3
-          const smoothedRps = previous.smoothedRps !== undefined
-            ? alpha * instantRps + (1 - alpha) * previous.smoothedRps
-            : instantRps
-
-          metrics.smoothedRps = smoothedRps
-          throughput = smoothedRps >= 0 ? smoothedRps.toFixed(2) : '0.00'
-          debug('Calculated throughput: instant=%f, smoothed=%s', instantRps, throughput)
-        }
-      } else {
-        debug('No previous counters found for %s, throughput will be blank', key)
-      }
-
-      // Store current counters for next iteration
-      this.previousCounters.set(key, metrics)
-      debug('Stored current counters for next iteration')
-
       return {
         experiment: appName,
         branch,
         active: activeStatus,
         route: routeStr,
         avgResponseTime,
-        errorRate,
-        throughput,
-        total2xx: metrics.total2xx.toString(),
-        total3xx: metrics.total3xx.toString(),
-        total4xx: metrics.total4xx.toString(),
-        total5xx: metrics.total5xx.toString(),
+        total2xx: pct(metrics.total2xx),
+        total3xx: pct(metrics.total3xx),
+        total4xx: pct(metrics.total4xx),
+        total5xx: pct(metrics.total5xx),
       }
     } catch (error: any) {
       debug('Error in fetchExperimentMetrics: %s', error.message)
@@ -411,14 +328,18 @@ export default class Watch extends Command {
         active: active === false ? '✗' : `✓ ${mode}`,
         route: this.formatRoute(rules),
         avgResponseTime: 'Error',
-        errorRate: 'Error',
-        throughput: 'Error',
         total2xx: '0',
         total3xx: '0',
         total4xx: '0',
         total5xx: '0',
       }
     }
+  }
+
+  // Formats a status-class count as a share of all 2xx-5xx responses.
+  private percentOf(metrics: MetricCounters): (count: number) => string {
+    const total = metrics.total2xx + metrics.total3xx + metrics.total4xx + metrics.total5xx
+    return count => (total > 0 ? `${Number(((count / total) * 100).toFixed(1))}%` : '0%')
   }
 
   private combineMetrics(metrics1: MetricCounters | null, metrics2: MetricCounters | null): MetricCounters | null {
@@ -443,7 +364,6 @@ export default class Watch extends Command {
       total5xx: metrics1.total5xx + metrics2.total5xx,
       totalErrors: metrics1.totalErrors + metrics2.totalErrors,
       timestamp: Math.max(metrics1.timestamp, metrics2.timestamp),
-      smoothedRps: undefined, // Will be calculated fresh
     }
   }
 
@@ -709,10 +629,10 @@ export default class Watch extends Command {
     this.log(`\nExperiment Metrics - ${appName}`)
     this.log(`Last updated: ${timestamp.toLocaleTimeString()} ${'.'.repeat(dotsRemaining)}\n`)
 
-    // Display table with columns: Active, Branch, Route, Avg ms, Error %, Req/s, 2xx, 3xx, 4xx, 5xx
+    // Display table with columns: Traffic, Branch, Route, Avg ms, 2xx, 3xx, 4xx, 5xx (as % of responses)
     cli.table(results, {
       active: {
-        header: 'Active',
+        header: 'Traffic',
         minWidth: 15,
       },
       branch: {
@@ -725,14 +645,6 @@ export default class Watch extends Command {
       },
       avgResponseTime: {
         header: 'Avg ms',
-        minWidth: 10,
-      },
-      errorRate: {
-        header: 'Error %',
-        minWidth: 10,
-      },
-      throughput: {
-        header: 'Req/s',
         minWidth: 10,
       },
       total2xx: {

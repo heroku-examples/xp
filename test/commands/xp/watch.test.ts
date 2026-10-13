@@ -463,106 +463,6 @@ http_request_duration_seconds_count{route="/api"} 100
         .command(['xp:watch', '-a', 'test-app'])
         .it('calculates avg response time')
     })
-
-    it('calculates error rate correctly', async () => {
-      const prometheusMetrics = `
-http_requests_total{route="/api",status="200"} 900
-http_requests_total{route="/api",status="500"} 100
-`
-
-      // Expected error rate: 100 / 1000 = 10%
-
-      const mockConfig = {
-        version: 2,
-        experiments: [
-          {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
-            branch: 'feature-a',
-            version: 1,
-            repo: 'test/repo',
-            url: 'https://test-exp-app.herokuapp.com',
-            rules: [],
-            createdAt: '2026-01-01T00:00:00Z',
-            updatedAt: '2026-01-01T00:00:00Z',
-          },
-        ],
-      }
-
-      const mockConfigVars = {
-        HEROKU_XP: JSON.stringify(mockConfig),
-      }
-
-      const mockParentApp = {
-        name: 'test-app',
-        web_url: 'https://test-app.herokuapp.com',
-      }
-
-      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
-
-      test
-        .nock('https://api.heroku.com', api =>
-          api
-            .get('/apps/test-app/config-vars')
-            .reply(200, mockConfigVars)
-            .get('/apps/test-app')
-            .reply(200, mockParentApp)
-        )
-        .stdout()
-        .command(['xp:watch', '-a', 'test-app'])
-        .it('calculates error rate')
-    })
-
-    it('calculates throughput rate correctly (difference between samples)', async () => {
-      // This would require multiple samples over time
-      // For now, test that it handles single sample correctly
-
-      const prometheusMetrics = `
-http_requests_total{route="/api"} 1000
-`
-
-      const mockConfig = {
-        version: 2,
-        experiments: [
-          {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
-            branch: 'feature-a',
-            version: 1,
-            repo: 'test/repo',
-            url: 'https://test-exp-app.herokuapp.com',
-            rules: [],
-            createdAt: '2026-01-01T00:00:00Z',
-            updatedAt: '2026-01-01T00:00:00Z',
-          },
-        ],
-      }
-
-      const mockConfigVars = {
-        HEROKU_XP: JSON.stringify(mockConfig),
-      }
-
-      const mockParentApp = {
-        name: 'test-app',
-        web_url: 'https://test-app.herokuapp.com',
-      }
-
-      mockHttpRequest('https://test-app.herokuapp.com/.dyno-proxy/metrics/', prometheusMetrics)
-
-      test
-        .nock('https://api.heroku.com', api =>
-          api
-            .get('/apps/test-app/config-vars')
-            .reply(200, mockConfigVars)
-            .get('/apps/test-app')
-            .reply(200, mockParentApp)
-        )
-        .stdout()
-        .command(['xp:watch', '-a', 'test-app'])
-        .it('handles throughput calculation')
-    })
   })
 
   describe('Error handling', () => {
@@ -935,7 +835,7 @@ http_requests_total{route="/api"} 1000
     })
   })
 
-  describe('Active column', () => {
+  describe('Traffic column', () => {
     it('displays ✓ when experiment is active (active=true)', async () => {
       const mockConfig = {
         version: 2,
