@@ -17,17 +17,17 @@ const xpJSON = `{
       "appName": "my-app-exp-a", "appID": "exp-a", "parentApp": "my-app",
       "url": "https://exp-a.herokuapp.com",
       "rules": [
-        {"weight": 25, "mirror": true, "method": "get", "path": "/api,/v2"},
-        {"header": "x-xp: agent-a", "query": "xp: a"}
+        {"weight": 25, "traffic": "mirror", "method": "get", "path": "/api,/v2"},
+        {"traffic": "live", "header": "x-xp: agent-a", "query": "xp: a"}
       ]
     },
     {
       "appID": "exp-off", "parentApp": "my-app", "url": "https://off.herokuapp.com",
-      "active": false, "rules": [{"path": "/off"}]
+      "active": false, "rules": [{"traffic": "live", "path": "/off"}]
     },
     {
       "appID": "exp-b", "parentApp": "my-app", "url": "https://exp-b.herokuapp.com",
-      "rules": [{"path": "/zero", "weight": 0}, {"header": {"x-xp": "b"}}]
+      "rules": [{"traffic": "live", "path": "/zero", "weight": 0}, {"traffic": "live", "header": {"x-xp": "b"}}]
     }
   ]
 }`
@@ -140,10 +140,12 @@ func TestRemovesBlockWhenXPUnset(t *testing.T) {
 
 func TestInvalidXPDoesNotFail(t *testing.T) {
 	for name, xp := range map[string]string{
-		"bad json":    "not json{",
-		"missing url": `{"experiments":[{"appID":"x","rules":[{"path":"/"}]}]}`,
-		"no matcher":  `{"experiments":[{"appID":"x","url":"https://x","rules":[{"mirror":true}]}]}`,
-		"bad matcher": `{"experiments":[{"appID":"x","url":"https://x","rules":[{"header":"nocolon"}]}]}`,
+		"bad json":        "not json{",
+		"missing url":     `{"experiments":[{"appID":"x","rules":[{"traffic":"live","path":"/"}]}]}`,
+		"no matcher":      `{"experiments":[{"appID":"x","url":"https://x","rules":[{"traffic":"mirror"}]}]}`,
+		"no traffic":      `{"experiments":[{"appID":"x","url":"https://x","rules":[{"path":"/","mirror":true}]}]}`,
+		"unknown traffic": `{"experiments":[{"appID":"x","url":"https://x","rules":[{"path":"/","traffic":"both"}]}]}`,
+		"bad matcher":     `{"experiments":[{"appID":"x","url":"https://x","rules":[{"traffic":"live","header":"nocolon"}]}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			path, _, stderr, err := runHook(t, "", map[string]string{"HEROKU_XP": xp})
@@ -191,5 +193,27 @@ func TestProjectTomlEnvOverride(t *testing.T) {
 	}
 	if got := len(readRoutes(t, custom)); got != 4 {
 		t.Errorf("want 4 routes, got %d", got)
+	}
+}
+
+// `heroku xp --traffic mirror|live` is stored as rule.traffic and written as mirror = true (live omits it).
+func TestTrafficMirrorAndLive(t *testing.T) {
+	xp := `{"experiments":[
+	  {"appID":"m","parentApp":"p","url":"https://m.example.com","rules":[{"traffic":"mirror","weight":10,"method":"GET"}]},
+	  {"appID":"l","parentApp":"p","url":"https://l.example.com","rules":[{"traffic":"live","weight":10,"method":"GET"}]}
+	]}`
+	path, _, stderr, err := runHook(t, "", map[string]string{"HEROKU_XP": xp})
+	if err != nil {
+		t.Fatalf("run: %v\n%s", err, stderr)
+	}
+	routes := readRoutes(t, path)
+	if len(routes) != 2 {
+		t.Fatalf("want 2 routes, got %v", routes)
+	}
+	if routes[0]["mirror"] != true {
+		t.Errorf("mirror experiment: mirror = %v, want true", routes[0]["mirror"])
+	}
+	if _, ok := routes[1]["mirror"]; ok {
+		t.Errorf("live experiment must not be mirrored: %v", routes[1])
 	}
 }

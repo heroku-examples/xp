@@ -1,7 +1,7 @@
 // ===== NEW SIMPLIFIED FORMAT (v2 - FINAL) =====
 
 export interface SimplifiedRule {
-  mirror?: boolean
+  traffic?: 'mirror' | 'live'  // mirror: staging still responds; live: the experiment responds
   weight?: number
   path?: string  // Comma-separated paths: "/api/v3,/api/v4"
   query?: string  // Format: "key: value"
@@ -162,9 +162,7 @@ export function migrateToSimplified(legacyConfig: ExperimentsConfig): Simplified
     if (exp.routing || exp.mirror) {
       const rule: SimplifiedRule = {}
 
-      if (exp.mirror === true || exp.mirror === 'both') {
-        rule.mirror = true
-      }
+      rule.traffic = exp.mirror === true || exp.mirror === 'both' ? 'mirror' : 'live'
 
       if (exp.routing?.weight !== undefined) {
         rule.weight = exp.routing.weight
@@ -260,7 +258,7 @@ export function validateWeights(config: SimplifiedExperimentsConfig): void {
   // Only consider active, non-mirror experiments
   const activeExperiments = config.experiments.filter(exp => {
     const isActive = exp.active !== false
-    const isMirror = exp.rules?.[0]?.mirror === true
+    const isMirror = exp.rules?.[0]?.traffic === 'mirror'
     return isActive && !isMirror
   })
 

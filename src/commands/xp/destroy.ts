@@ -234,8 +234,8 @@ export default class Destroy extends Command {
         parts.push(`--weight ${rule.weight}`)
       }
 
-      if (rule.mirror !== undefined) {
-        parts.push(`--mirror ${rule.mirror}`)
+      if (rule.traffic !== undefined) {
+        parts.push(`--traffic ${rule.traffic}`)
       }
 
       if (rule.path) {

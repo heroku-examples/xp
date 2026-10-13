@@ -346,7 +346,7 @@ describe('validateWeights', () => {
         experiments: [
           createExperiment({
             appName: 'exp-1',
-            rules: [{path: '/api', method: 'GET', weight: 50, mirror: true}],
+            rules: [{path: '/api', method: 'GET', weight: 50, traffic: 'mirror'}],
           }),
           createExperiment({
             appName: 'exp-2',
@@ -365,15 +365,15 @@ describe('validateWeights', () => {
         experiments: [
           createExperiment({
             appName: 'exp-1',
-            rules: [{path: '/api', method: 'GET', weight: 100, mirror: true}],
+            rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
           createExperiment({
             appName: 'exp-2',
-            rules: [{path: '/api', method: 'GET', weight: 100, mirror: true}],
+            rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
           createExperiment({
             appName: 'exp-3',
-            rules: [{path: '/api', method: 'GET', weight: 100, mirror: true}],
+            rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
         ],
       }
@@ -388,7 +388,7 @@ describe('validateWeights', () => {
         experiments: [
           createExperiment({
             appName: 'exp-1',
-            rules: [{path: '/api', method: 'GET', weight: 100, mirror: true}],
+            rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
           createExperiment({
             appName: 'exp-2',
@@ -561,7 +561,7 @@ describe('validateWeights', () => {
           }),
           createExperiment({
             appName: 'exp-3',
-            rules: [{path: '/api', method: 'GET', weight: 40, mirror: true}],
+            rules: [{path: '/api', method: 'GET', weight: 40, traffic: 'mirror'}],
             active: true, // mirror - should be ignored
           }),
           createExperiment({

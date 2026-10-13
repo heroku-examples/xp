@@ -47,9 +47,10 @@ export default class Update extends Command {
       description: 'Header-based routing (format: key=value)',
       multiple: true,
     }),
-    mirror: flags.string({
-      char: 'm',
-      description: 'Enable mirroring for this experiment (true or false)',
+    traffic: flags.string({
+      char: 't',
+      description: 'How traffic reaches the experiment: mirror (staging still responds) or live (the experiment responds)',
+      options: ['mirror', 'live'],
     }),
   }
 
@@ -95,7 +96,7 @@ export default class Update extends Command {
       this.log('')
 
       // Check if experiment is in mirror mode
-      const isMirror = updatedExperiment.rules && updatedExperiment.rules.length > 0 && updatedExperiment.rules[0].mirror === true
+      const isMirror = updatedExperiment.rules && updatedExperiment.rules.length > 0 && updatedExperiment.rules[0].traffic === 'mirror'
       const mode = isMirror ? 'mirror' : 'live'
       const tableData = [{
         active: updatedExperiment.active !== false ? `✓ ${mode}` : '✗',
@@ -196,19 +197,13 @@ export default class Update extends Command {
     const rules: any[] = []
 
     // Create rule if any routing parameters exist
-    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.mirror !== undefined
+    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.traffic !== undefined
 
     if (hasRoutingConfig) {
       const rule: any = {}
 
-      // Mirror defaults to true if not specified
-      if (flags.mirror !== undefined) {
-        const mirrorValue = flags.mirror.toLowerCase()
-        rule.mirror = mirrorValue !== 'false' && mirrorValue !== '0' && mirrorValue !== 'no'
-      } else {
-        // Keep existing mirror setting or default to true
-        rule.mirror = existingExperiment.rules?.[0]?.mirror ?? true
-      }
+      // Keep the existing traffic setting or default to mirror
+      rule.traffic = flags.traffic ?? existingExperiment.rules?.[0]?.traffic ?? 'mirror'
 
       if (flags.weight !== undefined) {
         rule.weight = flags.weight

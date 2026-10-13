@@ -33,16 +33,16 @@ With no routing flags, XP proposes cautious defaults and asks you to confirm the
 
 ### Route Many Branches Through One Staging URL
 
-Give each branch its own routing key and pass `--mirror false` so the review app's responses are returned to clients:
+Give each branch its own routing key and pass `--traffic live` so the review app's responses are returned to clients:
 
 ```bash
 # Reached with a header
 heroku xp:create -a my-app-staging -b agent-a-search \
-  --header x-xp=agent-a --mirror false
+  --header x-xp=agent-a --traffic live
 
 # Reached with a query parameter
 heroku xp:create -a my-app-staging -b agent-b-billing \
-  --query xp=agent-b --mirror false
+  --query xp=agent-b --traffic live
 ```
 
 Requests without a routing key are served by staging as usual:
@@ -57,7 +57,7 @@ curl "https://my-app-staging.herokuapp.com/billing?xp=agent-b"
 Mirrored requests go to both apps, but staging's response is the one returned, so a broken branch never interrupts anyone using staging. When you're ready, return the review app's responses instead:
 
 ```bash
-heroku xp:update -a my-app-staging -b new-checkout --weight 25 --mirror false
+heroku xp:update -a my-app-staging -b new-checkout --weight 25 --traffic live
 ```
 
 ### Compare Branches

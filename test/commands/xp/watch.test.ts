@@ -1273,7 +1273,7 @@ http_requests_total{route="/api"} 1000
             repo: 'test/repo',
             url: 'https://test-exp-app.herokuapp.com',
             active: true,
-            rules: [{mirror: true, method: 'GET'}],
+            rules: [{traffic: 'mirror', method: 'GET'}],
             createdAt: '2026-01-01T00:00:00Z',
             updatedAt: '2026-01-01T00:00:00Z',
           },

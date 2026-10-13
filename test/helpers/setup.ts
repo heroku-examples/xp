@@ -75,7 +75,7 @@ export function createMockExperiment(branch: string, appName: string, overrides:
   const now = new Date().toISOString()
   const defaultRule: SimplifiedRule = {
     weight: 10,
-    mirror: false,
+    traffic: 'live',
     method: 'GET',
   }
 

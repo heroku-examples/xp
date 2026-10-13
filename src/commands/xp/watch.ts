@@ -294,7 +294,7 @@ export default class Watch extends Command {
       debug('fetchExperimentMetrics: appName=%s, appID=%s, branch=%s, parentWebUrl=%s', appName, appID, branch, parentWebUrl)
 
       // Format active status with mirror/live indicator
-      const isMirror = rules && rules.length > 0 && rules[0].mirror === true
+      const isMirror = rules && rules.length > 0 && rules[0].traffic === 'mirror'
       const mode = isMirror ? 'mirror' : 'live'
       const activeStatus = active === false ? '✗' : `✓ ${mode}`
 
@@ -397,7 +397,7 @@ export default class Watch extends Command {
     } catch (error: any) {
       debug('Error in fetchExperimentMetrics: %s', error.message)
       const {appName, branch, active, rules} = exp
-      const isMirror = rules && rules.length > 0 && rules[0].mirror === true
+      const isMirror = rules && rules.length > 0 && rules[0].traffic === 'mirror'
       const mode = isMirror ? 'mirror' : 'live'
       return {
         experiment: appName,

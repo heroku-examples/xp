@@ -20,7 +20,7 @@ export default class Create extends Command {
     `$ heroku xp:create --app my-app-staging --branch feature-xyz`,
     `$ heroku xp:create --app my-app-staging --branch new-ui --weight 10`,
     `$ heroku xp:create --app my-app-staging --branch api-v2 --path /api/v2`,
-    `$ heroku xp:create -a xp-demo-staging -b 1-green --weight 50 --path '/*' --mirror false`,
+    `$ heroku xp:create -a xp-demo-staging -b 1-green --weight 50 --path '/*' --traffic live`,
   ]
 
   private sanitizeErrorMessage(error: any): string {
@@ -64,9 +64,10 @@ export default class Create extends Command {
     stack: flags.string({
       description: 'Heroku stack',
     }),
-    mirror: flags.string({
-      char: 'm',
-      description: 'Enable mirroring for this experiment (true or false, default: true)',
+    traffic: flags.string({
+      char: 't',
+      description: 'How traffic reaches the experiment: mirror (staging still responds) or live (the experiment responds)',
+      options: ['mirror', 'live'],
     }),
   }
 
@@ -77,7 +78,7 @@ export default class Create extends Command {
 
     try {
       // Check if only branch is provided (no routing config)
-      const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.mirror !== undefined
+      const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.traffic !== undefined
 
       if (!hasRoutingConfig) {
         // Show default experiment rules and confirm
@@ -85,7 +86,7 @@ export default class Create extends Command {
         this.log('Default experiment rules:')
         this.log('  method: GET')
         this.log('  weight: 10')
-        this.log('  mirror: true')
+        this.log('  traffic: mirror')
         this.log('')
 
         const confirmed = await cli.confirm('Create experiment with these defaults? (y/n)')
@@ -96,7 +97,7 @@ export default class Create extends Command {
 
         // Apply defaults
         flags.weight = 10
-        flags.mirror = 'true'
+        flags.traffic = 'mirror'
         flags.method = 'GET'
       }
 
@@ -301,7 +302,7 @@ export default class Create extends Command {
       this.log('')
 
       // Check if experiment is in mirror mode
-      const isMirror = newExperiment.rules && newExperiment.rules.length > 0 && newExperiment.rules[0].mirror === true
+      const isMirror = newExperiment.rules && newExperiment.rules.length > 0 && newExperiment.rules[0].traffic === 'mirror'
       const mode = isMirror ? 'mirror' : 'live'
       const tableData = [{
         active: newExperiment.active !== false ? `✓ ${mode}` : '✗',
@@ -821,19 +822,13 @@ export default class Create extends Command {
     const rules: any[] = []
 
     // Create rule if any routing parameters exist
-    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method
+    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.traffic !== undefined
 
     if (hasRoutingConfig) {
       const rule: any = {}
 
-      // Mirror defaults to true if not specified
-      // Parse string flag: 'false' -> false, 'true' or undefined -> true
-      if (flags.mirror !== undefined) {
-        const mirrorValue = flags.mirror.toLowerCase()
-        rule.mirror = mirrorValue !== 'false' && mirrorValue !== '0' && mirrorValue !== 'no'
-      } else {
-        rule.mirror = true
-      }
+      // Traffic defaults to mirror if not specified
+      rule.traffic = flags.traffic ?? 'mirror'
 
       if (flags.weight !== undefined) {
         rule.weight = flags.weight

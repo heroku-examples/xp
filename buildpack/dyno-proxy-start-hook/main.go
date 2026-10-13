@@ -14,7 +14,9 @@
 //     markers is left as is.
 //  2. Each active experiment rule becomes one route per path (a comma-separated
 //     path yields several), forwarding to the experiment's url. Inactive
-//     experiments and rules with weight 0 are skipped.
+//     experiments and rules with weight 0 are skipped. A rule's traffic is
+//     "mirror" (staging still responds; the route is mirrored) or "live" (the
+//     experiment responds) and is required.
 //  3. If HEROKU_XP is unset or empty, the managed block is dropped.
 //
 // A broken HEROKU_XP does not fail the hook: the block is dropped, a warning is
@@ -234,13 +236,13 @@ type xpExperiment struct {
 }
 
 type xpRule struct {
-	Mirror bool    `json:"mirror"`
-	Weight *int    `json:"weight,omitempty"`
-	Path   string  `json:"path,omitempty"`
-	Method string  `json:"method,omitempty"`
-	Header kvMatch `json:"header,omitempty"`
-	Query  kvMatch `json:"query,omitempty"`
-	Body   kvMatch `json:"body,omitempty"`
+	Traffic string  `json:"traffic"`
+	Weight  *int    `json:"weight,omitempty"`
+	Path    string  `json:"path,omitempty"`
+	Method  string  `json:"method,omitempty"`
+	Header  kvMatch `json:"header,omitempty"`
+	Query   kvMatch `json:"query,omitempty"`
+	Body    kvMatch `json:"body,omitempty"`
 }
 
 // kvMatch is a header/query/body matcher. The CLI writes a single "key: value"
@@ -309,6 +311,9 @@ func routesFromXP(raw string) ([]route, error) {
 			if rule.Weight != nil && *rule.Weight == 0 {
 				continue
 			}
+			if rule.Traffic != "mirror" && rule.Traffic != "live" {
+				return nil, fmt.Errorf("experiment %q rule %d has traffic %q (want \"mirror\" or \"live\")", exp.AppID, i, rule.Traffic)
+			}
 			var methods []string
 			if rule.Method != "" {
 				methods = []string{strings.ToUpper(rule.Method)}
@@ -335,7 +340,7 @@ func routesFromXP(raw string) ([]route, error) {
 					Percentage:    pct,
 					App:           exp.ParentApp,
 					ExperimentApp: exp.AppID,
-					Mirror:        rule.Mirror,
+					Mirror:        rule.Traffic == "mirror",
 					Header:        rule.Header,
 					Query:         rule.Query,
 					Body:          rule.Body,
