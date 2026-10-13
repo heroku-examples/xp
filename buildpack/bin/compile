@@ -105,6 +105,16 @@ export PATH=$PATH:$HOME/vendor/dyno-proxy
 
 # XP guard: do not start the proxy unless HEROKU_XP is set.
 if [ -n "$HEROKU_XP" ]; then
+  # Export DYNO_PROXY_ADMIN_USER/PASSWORD from HEROKU_XP's metrics_user/metrics_secret.
+  if command -v jq >/dev/null 2>&1; then
+    _xp_user="$(printf '%s' "$HEROKU_XP" | jq -r '.metrics_user // empty' 2>/dev/null)"
+    _xp_secret="$(printf '%s' "$HEROKU_XP" | jq -r '.metrics_secret // empty' 2>/dev/null)"
+    [ -z "$_xp_user" ] || export DYNO_PROXY_ADMIN_USER="$_xp_user"
+    [ -z "$_xp_secret" ] || export DYNO_PROXY_ADMIN_PASSWORD="$_xp_secret"
+    unset _xp_user _xp_secret
+  else
+    echo "jq is not available, DYNO_PROXY_ADMIN_USER and DYNO_PROXY_ADMIN_PASSWORD are not set." >&2
+  fi
   . "$HOME/vendor/dyno-proxy/profile.d-dyno-proxy.sh"
 else
   echo "HEROKU_XP is not set, proxy is not started."

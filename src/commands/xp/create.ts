@@ -118,6 +118,8 @@ export default class Create extends Command {
 
       // Step 5: Read HEROKU_XP config var and check for existing experiment
       const experimentsConfig = await this.getExperimentsConfig(parentApp)
+      experimentsConfig.metrics_user ??= crypto.randomBytes(8).toString('hex')
+      experimentsConfig.metrics_secret ??= crypto.randomBytes(24).toString('hex')
 
       // Check if experiment with same parentApp+branch already exists (composite key)
       const existingExperiment = findExperimentByKey(experimentsConfig, parentApp, branch)

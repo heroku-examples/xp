@@ -127,11 +127,15 @@ export default class Watch extends Command {
         throw new Error(`Parent app ${appName} has no id`)
       }
 
+      // Basic auth for /.dyno-proxy/metrics, from the credentials xp:create stored
+      const {metrics_user: user, metrics_secret: secret} = experimentsConfig
+      const auth = user && secret ? `${user}:${secret}` : undefined
+
       debug('Fetching metrics for %d experiments using parent URL: %s', experimentsConfig.experiments.length, parentWebUrl)
       // Fetch metrics for each experiment using parent app URL
       const metricsPromises = experimentsConfig.experiments.map((exp, idx) => {
         debug('Experiment %d: appName=%s, branch=%s', idx + 1, exp.appName, exp.branch)
-        return this.fetchExperimentMetrics(exp, parentWebUrl)
+        return this.fetchExperimentMetrics(exp, parentWebUrl, auth)
       })
 
       const metricsResults = await Promise.all(metricsPromises)
@@ -139,7 +143,7 @@ export default class Watch extends Command {
 
       // Fetch control (parent app) metrics
       debug('Fetching control metrics for parent app: %s (id: %s)', appName, parentAppId)
-      const controlMetrics = await this.fetchControlMetrics(appName, parentAppId, parentWebUrl)
+      const controlMetrics = await this.fetchControlMetrics(appName, parentAppId, parentWebUrl, auth)
       metricsResults.push(controlMetrics)
 
       // Store metrics results for redrawing during countdown
@@ -162,14 +166,15 @@ export default class Watch extends Command {
   private async fetchControlMetrics(
     appName: string,
     appId: string,
-    parentWebUrl: string
+    parentWebUrl: string,
+    auth?: string
   ): Promise<ExperimentMetrics> {
     try {
       debug('fetchControlMetrics: appName=%s, appId=%s, parentWebUrl=%s', appName, appId, parentWebUrl)
 
       const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
       debug('Fetching metrics from parent app URL: %s', metricsUrl)
-      const metricsText = await this.fetchUrl(metricsUrl)
+      const metricsText = await this.fetchUrl(metricsUrl, auth)
       debug('Successfully fetched metrics, response length: %d bytes', metricsText.length)
 
       // Try both router labels and combine metrics
@@ -287,7 +292,8 @@ export default class Watch extends Command {
 
   private async fetchExperimentMetrics(
     exp: SimplifiedExperimentEntry,
-    parentWebUrl: string
+    parentWebUrl: string,
+    auth?: string
   ): Promise<ExperimentMetrics> {
     try {
       const {appName, appID, branch, active, rules} = exp
@@ -303,7 +309,7 @@ export default class Watch extends Command {
 
       const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
       debug('Fetching metrics from parent app URL: %s', metricsUrl)
-      const metricsText = await this.fetchUrl(metricsUrl)
+      const metricsText = await this.fetchUrl(metricsUrl, auth)
       debug('Successfully fetched metrics, response length: %d bytes', metricsText.length)
 
       const routerLabel = `${appID}-experiment@file`
@@ -564,13 +570,13 @@ export default class Watch extends Command {
     return labels
   }
 
-  private fetchUrl(url: string): Promise<string> {
+  private fetchUrl(url: string, auth?: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const protocol = url.startsWith('https') ? https : http
       debug('fetchUrl: protocol=%s, url=%s', protocol === https ? 'https' : 'http', url)
 
       const startTime = Date.now()
-      const req = protocol.get(url, res => {
+      const req = protocol.get(url, {auth}, res => {
         debug('HTTP Response: status=%d, statusMessage=%s, headers=%j',
           res.statusCode, res.statusMessage, res.headers)
 

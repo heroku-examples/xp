@@ -65,6 +65,14 @@ if [ -z "\$HEROKU_XP" ]; then
 	echo "HEROKU_XP is not set, proxy is not started."
 	exit 0
 fi
+if command -v jq >/dev/null 2>&1; then
+	_xp_user="\$(printf '%s' "\$HEROKU_XP" | jq -r '.metrics_user // empty' 2>/dev/null)"
+	_xp_secret="\$(printf '%s' "\$HEROKU_XP" | jq -r '.metrics_secret // empty' 2>/dev/null)"
+	[ -z "\$_xp_user" ] || export DYNO_PROXY_ADMIN_USER="\$_xp_user"
+	[ -z "\$_xp_secret" ] || export DYNO_PROXY_ADMIN_PASSWORD="\$_xp_secret"
+else
+	echo "jq is not available, DYNO_PROXY_ADMIN_USER and DYNO_PROXY_ADMIN_PASSWORD are not set." >&2
+fi
 exec "${DYNO_PROXY_LAYER}/exec.d-dyno-proxy" "\$@"
 EOS
 chmod +x "${hook_dir}/dyno-proxy"
