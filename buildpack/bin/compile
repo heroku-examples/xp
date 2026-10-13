@@ -106,6 +106,8 @@ export PATH=$PATH:$HOME/vendor/dyno-proxy
 # XP guard: do not start the proxy unless HEROKU_XP is set.
 if [ -n "$HEROKU_XP" ]; then
   . "$HOME/vendor/dyno-proxy/profile.d-dyno-proxy.sh"
+else
+  echo "xp: HEROKU_XP is not set, dyno-proxy is not started"
 fi
 EOS
 

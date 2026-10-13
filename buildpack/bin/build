@@ -61,7 +61,10 @@ fi
 cat >"${hook_dir}/dyno-proxy" <<EOS
 #!/bin/bash
 # XP guard: do not start the proxy unless HEROKU_XP is set.
-[ -n "\$HEROKU_XP" ] || exit 0
+if [ -z "\$HEROKU_XP" ]; then
+	echo "xp: HEROKU_XP is not set, dyno-proxy is not started"
+	exit 0
+fi
 exec "${DYNO_PROXY_LAYER}/exec.d-dyno-proxy" "\$@"
 EOS
 chmod +x "${hook_dir}/dyno-proxy"
