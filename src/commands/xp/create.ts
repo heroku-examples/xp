@@ -378,6 +378,24 @@ export default class Create extends Command {
     }
   }
 
+  // CNB apps can't have buildpacks set through the API; the API's error points
+  // at docs, so tell the user what to put in project.toml instead.
+  private buildpackError(prefix: string, appName: string, error: any): Error {
+    const message = this.sanitizeErrorMessage(error)
+    if (!message.includes('Cloud Native Buildpacks')) {
+      return new Error(`${prefix}: ${message}`)
+    }
+
+    return new Error([
+      `${appName} uses Cloud Native Buildpacks, so buildpacks must be set in its project.toml.`,
+      'Add the XP buildpack image to project.toml (after your language buildpacks), then redeploy:',
+      '',
+      '  # project.toml',
+      '  [[io.buildpacks.group]]',
+      '  uri = "docker://ghcr.io/heroku-examples/xp"',
+    ].join('\n'))
+  }
+
   private async ensureXpBuildpack(appName: string): Promise<void> {
     try {
       // Get current buildpacks
@@ -414,7 +432,7 @@ export default class Create extends Command {
         }
       }
     } catch (error: any) {
-      throw new Error(`Failed to configure buildpacks: ${this.sanitizeErrorMessage(error)}`)
+      throw this.buildpackError('Failed to configure buildpacks', appName, error)
     }
   }
 
@@ -598,7 +616,7 @@ export default class Create extends Command {
         },
       })
     } catch (error: any) {
-      throw new Error(`Failed to copy buildpacks: ${this.sanitizeErrorMessage(error)}`)
+      throw this.buildpackError('Failed to copy buildpacks', experimentAppName, error)
     }
   }
 
