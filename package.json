@@ -33,7 +33,7 @@
     "prepare": "tsc -b",
     "clean": "rm -rf lib oclif.manifest.json",
     "lint": "eslint . --ext .ts",
-    "prepack": "yarn build && oclif manifest && oclif readme",
+    "prepack": "npm run build && oclif manifest && oclif readme",
     "postpack": "rm -f oclif.manifest.json",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
