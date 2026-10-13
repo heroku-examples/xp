@@ -1,5 +1,5 @@
 {
-  "name": "@heroku-cli/plugin-experiments",
+  "name": "xp",
   "version": "1.0.0",
   "description": "Heroku CLI plugin for managing experiment apps with traffic routing",
   "author": "Heroku",
