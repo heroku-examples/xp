@@ -378,21 +378,20 @@ export default class Create extends Command {
     }
   }
 
-  // CNB apps can't have buildpacks set through the API; the API's error points
-  // at docs, so tell the user what to put in project.toml instead.
-  private buildpackError(prefix: string, appName: string, error: any): Error {
-    const message = this.sanitizeErrorMessage(error)
-    if (!message.includes('Cloud Native Buildpacks')) {
-      return new Error(`${prefix}: ${message}`)
-    }
+  // CNB apps can't have buildpacks set through the API; they come from project.toml.
+  private isCnbError(error: any): boolean {
+    return this.sanitizeErrorMessage(error).includes('Cloud Native Buildpacks')
+  }
 
-    return new Error([
-      `${appName} uses Cloud Native Buildpacks, so buildpacks must be set in its project.toml.`,
-      'Add the XP buildpack image to project.toml (after your language buildpacks), then redeploy:',
+  private warnCnbBuildpack(appName: string): void {
+    this.warn([
+      `${appName} uses Cloud Native Buildpacks, so XP will not function until the buildpack is added to its project.toml:`,
       '',
       '  # project.toml',
       '  [[io.buildpacks.group]]',
       '  uri = "docker://ghcr.io/heroku-examples/xp"',
+      '',
+      'Redeploy after modifying project.toml.',
     ].join('\n'))
   }
 
@@ -432,7 +431,12 @@ export default class Create extends Command {
         }
       }
     } catch (error: any) {
-      throw this.buildpackError('Failed to configure buildpacks', appName, error)
+      if (this.isCnbError(error)) {
+        this.warnCnbBuildpack(appName)
+        return
+      }
+
+      throw new Error(`Failed to configure buildpacks: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 
@@ -616,7 +620,10 @@ export default class Create extends Command {
         },
       })
     } catch (error: any) {
-      throw this.buildpackError('Failed to copy buildpacks', experimentAppName, error)
+      // A CNB experiment app builds with the buildpacks in its branch's project.toml.
+      if (this.isCnbError(error)) return
+
+      throw new Error(`Failed to copy buildpacks: ${this.sanitizeErrorMessage(error)}`)
     }
   }
 

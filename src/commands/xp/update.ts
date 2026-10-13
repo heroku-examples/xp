@@ -196,7 +196,7 @@ export default class Update extends Command {
     const rules: any[] = []
 
     // Create rule if any routing parameters exist
-    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method
+    const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.method || flags.mirror !== undefined
 
     if (hasRoutingConfig) {
       const rule: any = {}
