@@ -218,7 +218,7 @@ export default class Watch extends Command {
 
       // Calculate average response time (just the number, no units)
       const avgResponseTime = metrics.durationCount > 0
-        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2)
+        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(0)
         : ''
       debug('Calculated avgResponseTime: %s (durationSum=%f, durationCount=%f)',
         avgResponseTime, metrics.durationSum, metrics.durationCount)
@@ -292,7 +292,7 @@ export default class Watch extends Command {
 
       // Calculate average response time (just the number, no units)
       const avgResponseTime = metrics.durationCount > 0
-        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(2)
+        ? ((metrics.durationSum / metrics.durationCount) * 1000).toFixed(0)
         : ''
       debug('Calculated avgResponseTime: %s (durationSum=%f, durationCount=%f)',
         avgResponseTime, metrics.durationSum, metrics.durationCount)
@@ -328,7 +328,7 @@ export default class Watch extends Command {
   // Formats a status-class count as a share of all 2xx-5xx responses.
   private percentOf(metrics: MetricCounters): (count: number) => string {
     const total = metrics.total2xx + metrics.total3xx + metrics.total4xx + metrics.total5xx
-    return count => (total > 0 ? `${Number(((count / total) * 100).toFixed(1))}%` : '0%')
+    return count => (total > 0 ? `${((count / total) * 100).toFixed(0)}%` : '0%')
   }
 
   private combineMetrics(metrics1: MetricCounters | null, metrics2: MetricCounters | null): MetricCounters | null {
