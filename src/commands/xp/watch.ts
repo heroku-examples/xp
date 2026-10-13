@@ -6,7 +6,6 @@ import createDebug from 'debug'
 import {
   SimplifiedExperimentsConfig,
   SimplifiedExperimentEntry,
-  SimplifiedRule,
   AnyExperimentsConfig,
   parseExperimentsConfig,
   isSimplifiedConfig,
@@ -33,7 +32,6 @@ interface ExperimentMetrics {
   experiment: string
   branch: string
   active: string
-  route: string
   avgResponseTime: string
   total2xx: string
   total3xx: string
@@ -205,7 +203,6 @@ export default class Watch extends Command {
           experiment: appName,
           branch: parentBranch,
           active: '✓ live',
-          route: '-',
           avgResponseTime: '',
           total2xx: '0',
           total3xx: '0',
@@ -230,7 +227,6 @@ export default class Watch extends Command {
         experiment: appName,
         branch: parentBranch,
         active: '✓ live',
-        route: '-',
         avgResponseTime,
         total2xx: pct(metrics.total2xx),
         total3xx: pct(metrics.total3xx),
@@ -243,7 +239,6 @@ export default class Watch extends Command {
         experiment: appName,
         branch: parentBranch,
         active: '✓ live',
-        route: '-',
         avgResponseTime: '',
         total2xx: '0',
         total3xx: '0',
@@ -267,9 +262,6 @@ export default class Watch extends Command {
       const mode = isMirror ? 'mirror' : 'live'
       const activeStatus = active === false ? '✗' : `✓ ${mode}`
 
-      // Format route from rules
-      const routeStr = this.formatRoute(rules)
-
       const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
       debug('Fetching metrics from parent app URL: %s', metricsUrl)
       const metricsText = await this.fetchUrl(metricsUrl, auth)
@@ -285,7 +277,6 @@ export default class Watch extends Command {
           experiment: appName,
           branch,
           active: activeStatus,
-          route: routeStr,
           avgResponseTime: '',
           total2xx: '0',
           total3xx: '0',
@@ -310,7 +301,6 @@ export default class Watch extends Command {
         experiment: appName,
         branch,
         active: activeStatus,
-        route: routeStr,
         avgResponseTime,
         total2xx: pct(metrics.total2xx),
         total3xx: pct(metrics.total3xx),
@@ -326,7 +316,6 @@ export default class Watch extends Command {
         experiment: appName,
         branch,
         active: active === false ? '✗' : `✓ ${mode}`,
-        route: this.formatRoute(rules),
         avgResponseTime: 'Error',
         total2xx: '0',
         total3xx: '0',
@@ -578,47 +567,6 @@ export default class Watch extends Command {
     }
   }
 
-  private formatRoute(rules: SimplifiedRule[]): string {
-    if (!rules || rules.length === 0) {
-      return '-'
-    }
-
-    const rule = rules[0]
-    const parts: string[] = []
-
-    // Add weight if specified
-    if (rule.weight !== undefined) {
-      parts.push(`${rule.weight}%`)
-    }
-
-    // Add method if specified and not GET (GET is default)
-    if (rule.method && rule.method !== 'GET') {
-      parts.push(rule.method)
-    }
-
-    // Add path if specified
-    if (rule.path) {
-      const paths = rule.path.split(',')
-      if (paths.length > 1) {
-        parts.push(`${paths[0]} (+${paths.length - 1})`)
-      } else {
-        parts.push(paths[0])
-      }
-    }
-
-    // Add query if specified
-    if (rule.query) {
-      parts.push(`?${rule.query}`)
-    }
-
-    // Add header if specified
-    if (rule.header) {
-      parts.push(`header:${rule.header}`)
-    }
-
-    return parts.length > 0 ? parts.join(' ') : '-'
-  }
-
   private redrawDisplay(dotsRemaining: number) {
     if (!this.currentMetrics) return
 
@@ -629,7 +577,7 @@ export default class Watch extends Command {
     this.log(`\nExperiment Metrics - ${appName}`)
     this.log(`Last updated: ${timestamp.toLocaleTimeString()} ${'.'.repeat(dotsRemaining)}\n`)
 
-    // Display table with columns: Traffic, Branch, Route, Avg ms, 2xx, 3xx, 4xx, 5xx (as % of responses)
+    // Display table with columns: Traffic, Branch, Avg ms, 2xx, 3xx, 4xx, 5xx (as % of responses)
     cli.table(results, {
       active: {
         header: 'Traffic',
@@ -637,10 +585,6 @@ export default class Watch extends Command {
       },
       branch: {
         header: 'Branch',
-        minWidth: 20,
-      },
-      route: {
-        header: 'Route',
         minWidth: 20,
       },
       avgResponseTime: {
