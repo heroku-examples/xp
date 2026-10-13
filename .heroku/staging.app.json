@@ -1,6 +1,0 @@
-{
-  "name": "xp-demo-staging",
-  "buildpacks": [
-    { "url": "heroku/exec" }
-  ]
-}
