@@ -28,6 +28,10 @@ export interface SimplifiedExperimentEntry {
 
 export interface SimplifiedExperimentsConfig {
   version: 2
+  // Credentials the proxy start script exports as DYNO_PROXY_ADMIN_USER and
+  // DYNO_PROXY_ADMIN_PASSWORD. Generated on first create and never overwritten.
+  metrics_user?: string
+  metrics_secret?: string
   experiments: SimplifiedExperimentEntry[]
 }
 
