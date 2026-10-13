@@ -8,12 +8,12 @@
   "types": "lib/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/heroku/experiments.git"
+    "url": "https://github.com/heroku-examples/xp.git"
   },
   "bugs": {
-    "url": "https://github.com/heroku/experiments/issues"
+    "url": "https://github.com/heroku-examples/xp/issues"
   },
-  "homepage": "https://github.com/heroku/experiments#readme",
+  "homepage": "https://github.com/heroku-examples/xp#readme",
   "keywords": [
     "heroku",
     "heroku-plugin",
@@ -30,6 +30,7 @@
   ],
   "scripts": {
     "build": "tsc -b",
+    "prepare": "tsc -b",
     "clean": "rm -rf lib oclif.manifest.json",
     "lint": "eslint . --ext .ts",
     "prepack": "yarn build && oclif manifest && oclif readme",
