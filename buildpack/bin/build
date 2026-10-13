@@ -48,4 +48,22 @@ echo "       installing $(basename "${hook}") -> ${DYNO_PROXY_DIR}/dyno-proxy-st
 cp "${hook}" "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
 chmod +x "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
 
+# Only start the proxy when HEROKU_XP is set. dyno-proxy's exec.d hook is moved
+# aside and replaced by a guard that returns immediately without HEROKU_XP, and
+# otherwise execs the original (same pid, so its $PPID and fd 3 handling are
+# unchanged). exec.d runs every file in the dir, so the original lives next to
+# it, not in it.
+DYNO_PROXY_LAYER="$(dirname "${DYNO_PROXY_DIR}")"
+hook_dir="${DYNO_PROXY_LAYER}/exec.d"
+if ! grep -q "XP guard" "${hook_dir}/dyno-proxy"; then
+	mv "${hook_dir}/dyno-proxy" "${DYNO_PROXY_LAYER}/exec.d-dyno-proxy"
+fi
+cat >"${hook_dir}/dyno-proxy" <<EOS
+#!/bin/bash
+# XP guard: do not start the proxy unless HEROKU_XP is set.
+[ -n "\$HEROKU_XP" ] || exit 0
+exec "${DYNO_PROXY_LAYER}/exec.d-dyno-proxy" "\$@"
+EOS
+chmod +x "${hook_dir}/dyno-proxy"
+
 exit 0

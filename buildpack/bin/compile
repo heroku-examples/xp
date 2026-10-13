@@ -93,4 +93,20 @@ echo "       installing $(basename "${hook}") -> ${DYNO_PROXY_DIR}/dyno-proxy-st
 cp "${hook}" "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
 chmod +x "${DYNO_PROXY_DIR}/dyno-proxy-start-hook"
 
+# Only start the proxy when HEROKU_XP is set. dyno-proxy's .profile.d script is
+# moved aside and replaced by a guard that sources it only when HEROKU_XP is
+# set. PATH is still extended so a `dyno-proxy run` web command keeps resolving.
+profile="$BUILD_DIR/.profile.d/dyno-proxy-defaults.sh"
+if ! grep -q "XP guard" "$profile"; then
+	mv "$profile" "$DYNO_PROXY_DIR/profile.d-dyno-proxy.sh"
+fi
+cat >"$profile" <<'EOS'
+export PATH=$PATH:$HOME/vendor/dyno-proxy
+
+# XP guard: do not start the proxy unless HEROKU_XP is set.
+if [ -n "$HEROKU_XP" ]; then
+  . "$HOME/vendor/dyno-proxy/profile.d-dyno-proxy.sh"
+fi
+EOS
+
 exit 0
