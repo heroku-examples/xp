@@ -67,7 +67,7 @@ export default class List extends Command {
       // Display table using cli-ux
       cli.table(tableData, {
         active: {
-          header: 'Active',
+          header: 'Traffic',
           minWidth: 8,
         },
         branch: {

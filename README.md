@@ -67,11 +67,11 @@ heroku xp:watch --app my-app-staging
 ```
 
 ```
-Active      Branch           Route                 Avg ms  Error %  Req/s
-- baseline  main                                   212     0.4%     38.1
-✓ live      agent-a-search   header:x-xp: agent-a  187     0.3%     1.2
-✓ live      agent-b-billing  ?xp: agent-b          240     2.1%     0.8
-✓ mirror    new-checkout     10%                   198     0.2%     3.9
+Traffic   Branch           Avg ms  2xx  3xx  4xx  5xx
+✓ live    main             212     97%  0%   2%   1%
+✓ live    agent-a-search   187     99%  0%   1%   0%
+✓ live    agent-b-billing  240     96%  0%   3%   1%
+✓ mirror  new-checkout     198     98%  0%   2%   0%
 ```
 
 ### Clean Up
