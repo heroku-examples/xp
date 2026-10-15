@@ -2,7 +2,6 @@ import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
 import {
   SimplifiedExperimentsConfig,
-  SimplifiedExperimentEntry,
   AnyExperimentsConfig,
   parseExperimentsConfig,
   isSimplifiedConfig,

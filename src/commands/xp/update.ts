@@ -1,5 +1,6 @@
 import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
+import {formatRoute, validateRoutingFlags} from '../../utils/routing'
 import {
   SimplifiedExperimentsConfig,
   SimplifiedExperimentEntry,
@@ -63,7 +64,7 @@ export default class Update extends Command {
       cli.action.start('Updating experiment')
 
       // Step 1: Validate arguments
-      this.validateArguments(branch, flags)
+      validateRoutingFlags(branch, flags)
 
       // Step 2: Read HEROKU_XP config var
       const experimentsConfig = await this.getExperimentsConfig(parentApp)
@@ -101,7 +102,7 @@ export default class Update extends Command {
       const tableData = [{
         active: updatedExperiment.active !== false ? `✓ ${mode}` : '✗',
         branch: updatedExperiment.branch,
-        route: this.formatRoute(updatedExperiment),
+        route: formatRoute(updatedExperiment),
       }]
 
       cli.table(tableData, {
@@ -126,38 +127,6 @@ export default class Update extends Command {
     } catch (error: any) {
       cli.action.stop('')
       this.error(`Failed to update experiment: ${error.message}`)
-    }
-  }
-
-  private validateArguments(branch: string, flags: any): void {
-    // Validate branch name
-    if (!/^[a-zA-Z0-9-_./]+$/.test(branch)) {
-      throw new Error('Branch name contains invalid characters')
-    }
-
-    // Validate weight if provided
-    if (flags.weight !== undefined) {
-      if (flags.weight < 0 || flags.weight > 100) {
-        throw new Error('Weight must be between 0 and 100')
-      }
-    }
-
-    // Validate query parameters format
-    if (flags.query) {
-      for (const query of flags.query) {
-        if (!query.includes('=')) {
-          throw new Error(`Invalid query parameter format: "${query}". Use format: key=value`)
-        }
-      }
-    }
-
-    // Validate header format
-    if (flags.header) {
-      for (const header of flags.header) {
-        if (!header.includes('=')) {
-          throw new Error(`Invalid header format: "${header}". Use format: key=value`)
-        }
-      }
     }
   }
 
@@ -258,47 +227,6 @@ export default class Update extends Command {
       version: (existingExperiment.version || 1) + 1,
       updatedAt: now,
     }
-  }
-
-  private formatRoute(exp: SimplifiedExperimentEntry): string {
-    if (!exp.rules || exp.rules.length === 0) {
-      return '-'
-    }
-
-    const rule = exp.rules[0]
-    const parts: string[] = []
-
-    // Add weight if specified
-    if (rule.weight !== undefined) {
-      parts.push(`${rule.weight}%`)
-    }
-
-    // Add method if specified and not GET (GET is default)
-    if (rule.method && rule.method !== 'GET') {
-      parts.push(rule.method)
-    }
-
-    // Add path if specified
-    if (rule.path) {
-      const paths = rule.path.split(',')
-      if (paths.length > 1) {
-        parts.push(`${paths[0]} (+${paths.length - 1})`)
-      } else {
-        parts.push(paths[0])
-      }
-    }
-
-    // Add query if specified
-    if (rule.query) {
-      parts.push(`?${rule.query}`)
-    }
-
-    // Add header if specified
-    if (rule.header) {
-      parts.push(`header:${rule.header}`)
-    }
-
-    return parts.length > 0 ? parts.join(' ') : '-'
   }
 
   private async updateExperimentsConfig(

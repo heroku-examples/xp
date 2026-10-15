@@ -1,9 +1,7 @@
 import {expect, test} from '@oclif/test'
 import * as sinon from 'sinon'
-import * as http from 'http'
 import * as https from 'https'
 import {EventEmitter} from 'events'
-import Watch from '../../../src/commands/xp/watch'
 
 describe('xp:watch', () => {
   let sandbox: sinon.SinonSandbox
@@ -512,7 +510,7 @@ http_request_duration_seconds_count{route="/api"} 100
       // Override the stub for this specific test to throw an error
       if (httpsStub) {
         httpsStub.reset()
-        httpsStub.callsFake((url: any, callback: any) => {
+        httpsStub.callsFake(() => {
           const req = new EventEmitter()
           setImmediate(() => {
             req.emit('error', new Error('Network error'))

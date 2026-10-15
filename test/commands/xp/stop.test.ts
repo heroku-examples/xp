@@ -2,7 +2,6 @@ import {expect, test} from '@oclif/test'
 import * as sinon from 'sinon'
 import Stop from '../../../src/commands/xp/stop'
 import {
-  createMockApp,
   createMockExperimentsConfig,
   createMockExperiment,
   createMockConfigVars,
@@ -38,12 +37,11 @@ describe('xp:stop', () => {
 
   describe('stopping an active experiment', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3', {
             active: true,
@@ -81,12 +79,11 @@ describe('xp:stop', () => {
 
   describe('stopping an already inactive experiment', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3', {
             active: false,
@@ -112,12 +109,11 @@ describe('xp:stop', () => {
 
   describe('stopping experiment with implicit active: true (missing field)', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         // Create experiment without active field (defaults to true)
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3'),
@@ -148,12 +144,11 @@ describe('xp:stop', () => {
 
   describe('stopping one experiment among multiple', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3', {
             active: true,
@@ -201,12 +196,11 @@ describe('xp:stop', () => {
 
   describe('output messages', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3', {
             active: true,
@@ -232,11 +226,10 @@ describe('xp:stop', () => {
 
   describe('error handling', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const emptyConfig = createMockExperimentsConfig([])
         const mockConfigVars = createMockConfigVars({
           HEROKU_XP: JSON.stringify(emptyConfig),
@@ -252,11 +245,10 @@ describe('xp:stop', () => {
       .it('fails when experiment does not exist')
 
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('existing-exp', 'test-parent-app-existing-exp-p1q2r3'),
         ]
@@ -275,9 +267,9 @@ describe('xp:stop', () => {
       .it('fails when trying to stop a non-existent experiment')
 
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
-      }))
+      })))
       .do(() => {
         herokuGetStub.withArgs('/apps/nonexistent-app/config-vars').rejects(new Error('App not found'))
       })
@@ -288,11 +280,10 @@ describe('xp:stop', () => {
       .it('fails when parent app does not exist')
 
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const mockConfigVars = createMockConfigVars()
 
         herokuGetStub.withArgs('/apps/test-parent-app/config-vars').resolves({body: mockConfigVars})
@@ -304,11 +295,10 @@ describe('xp:stop', () => {
       .it('fails when HEROKU_XP config var is missing')
 
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const mockConfigVars = createMockConfigVars({
           HEROKU_XP: 'invalid json{',
         })
@@ -322,12 +312,11 @@ describe('xp:stop', () => {
       .it('fails when HEROKU_XP config is malformed JSON')
 
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3'),
         ]
@@ -348,11 +337,10 @@ describe('xp:stop', () => {
 
   describe('case sensitivity', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('Feature-XYZ', 'test-parent-app-feature-xyz-s1t2u3'),
         ]
@@ -372,12 +360,11 @@ describe('xp:stop', () => {
 
   describe('stopping experiment with different parent apps', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
 
         // Create experiments with same branch name but different parent apps
         const experiments = [
@@ -427,12 +414,11 @@ describe('xp:stop', () => {
 
   describe('config var size and weight validation', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('exp-1', 'app-1', {rules: [{weight: 50, traffic: 'live', method: 'GET'}]}),
           createMockExperiment('exp-2', 'app-2', {rules: [{weight: 30, traffic: 'live', method: 'GET'}]}),
@@ -469,12 +455,11 @@ describe('xp:stop', () => {
 
   describe('preserving experiment properties', () => {
     test
-      .stub(Stop.prototype, 'heroku' as any, () => ({
+      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
         get: herokuGetStub,
         patch: herokuPatchStub,
-      }))
+      })))
       .do(() => {
-        const mockApp = createMockApp()
         const experiments = [
           createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-a1b2c3', {
             repo: 'heroku/test-repo',

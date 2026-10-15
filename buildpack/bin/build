@@ -24,9 +24,9 @@ BUILDPACK_DIR="${CNB_BUILDPACK_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 # The dyno-proxy-start-hook startup hook is REQUIRED: it is what converts
 # HEROKU_XP into project.toml routes at boot. dyno-proxy execs it directly
-# from its own directory. It is a compiled binary checked in per platform as
-# bin/dyno-proxy-start-hook-linux-<arch> (build with
-# `GOOS=linux GOARCH=<arch> go build` in dyno-proxy-start-hook/); install the one for this build's arch (the
+# from its own directory. It is a compiled binary, one per architecture, built by
+# `make hook` into bin/dyno-proxy-start-hook-linux-<arch> (build output, not in git);
+# install the one for this build's arch (the
 # lifecycle sets CNB_TARGET_ARCH; fall back to uname -m for local runs).
 # Fail loudly if it is missing rather than silently shipping a proxy with no
 # XP routing.
@@ -41,7 +41,7 @@ esac
 hook="${BUILDPACK_DIR}/bin/dyno-proxy-start-hook-linux-${hook_arch}"
 if [ ! -f "${hook}" ]; then
 	echo " !     ${PROG}: startup hook not found at ${hook}" >&2
-	echo " !     ${PROG}: build it with: cd dyno-proxy-start-hook && GOOS=linux GOARCH=${hook_arch} go build -o ../bin/dyno-proxy-start-hook-linux-${hook_arch} ." >&2
+	echo " !     ${PROG}: build it with: make hook" >&2
 	exit 1
 fi
 echo "       installing $(basename "${hook}") -> ${DYNO_PROXY_DIR}/dyno-proxy-start-hook"

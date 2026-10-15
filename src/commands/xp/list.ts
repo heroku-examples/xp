@@ -2,13 +2,13 @@ import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
 import {
   SimplifiedExperimentsConfig,
-  SimplifiedExperimentEntry,
   AnyExperimentsConfig,
   parseExperimentsConfig,
   isSimplifiedConfig,
   migrateToSimplified,
   createEmptySimplifiedConfig,
 } from '../../types/experiment'
+import {formatRoute} from '../../utils/routing'
 
 export default class List extends Command {
   static description = 'List all experiments configured in HEROKU_XP'
@@ -60,7 +60,7 @@ export default class List extends Command {
         return {
           active: exp.active !== false ? `✓ ${mode}` : '✗',
           branch: exp.branch,
-          route: this.formatRoute(exp),
+          route: formatRoute(exp),
         }
       })
 
@@ -116,47 +116,6 @@ export default class List extends Command {
     } catch (error: any) {
       throw new Error(`Failed to read experiment configuration: ${error.message}`)
     }
-  }
-
-  private formatRoute(exp: SimplifiedExperimentEntry): string {
-    if (!exp.rules || exp.rules.length === 0) {
-      return '-'
-    }
-
-    const rule = exp.rules[0]
-    const parts: string[] = []
-
-    // Add weight if specified
-    if (rule.weight !== undefined) {
-      parts.push(`${rule.weight}%`)
-    }
-
-    // Add method if specified and not GET (GET is default)
-    if (rule.method && rule.method !== 'GET') {
-      parts.push(rule.method)
-    }
-
-    // Add path if specified
-    if (rule.path) {
-      const paths = rule.path.split(',')
-      if (paths.length > 1) {
-        parts.push(`${paths[0]} (+${paths.length - 1})`)
-      } else {
-        parts.push(paths[0])
-      }
-    }
-
-    // Add query if specified
-    if (rule.query) {
-      parts.push(`?${rule.query}`)
-    }
-
-    // Add header if specified
-    if (rule.header) {
-      parts.push(`header:${rule.header}`)
-    }
-
-    return parts.length > 0 ? parts.join(' ') : '-'
   }
 
   private formatDate(isoDate: string): string {

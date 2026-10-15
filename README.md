@@ -23,7 +23,7 @@ heroku plugins:install https://github.com/heroku-examples/xp
 
 ### Create a Review App Experiment
 
-Run `xp:create` against your staging app with a branch name. XP looks up that branch's review app in your pipeline, and creates it if it doesn't exist yet.
+Run `xp:create` against your staging app with a branch name. XP looks up that branch's review app in your pipeline. If there isn't one, it offers to run `heroku reviewapps:create` for you (after you confirm, or without asking with `--create-review-app`). XP never creates or configures apps itself.
 
 ```bash
 heroku xp:create --app my-app-staging --branch new-checkout
@@ -101,7 +101,7 @@ Run `heroku help xp` or `heroku xp:COMMAND --help` for details.
 
 ## How It Works
 
-XP adds its buildpack to the staging app. The buildpack runs a lightweight reverse proxy (Traefik) in each staging web dyno that sends each request to staging or to a review app experiment, based on rules stored in a single `HEROKU_XP` config var.
+XP adds its buildpack to the staging app. The buildpack runs a lightweight reverse proxy ([dyno-proxy](https://github.com/heroku-examples/dyno-proxy)) in each staging web dyno that sends each request to staging or to a review app experiment, based on rules stored in a single `HEROKU_XP` config var.
 
 ```
 Internet
@@ -110,7 +110,7 @@ Internet
 ┌──────────────────────────────────┐
 │ Staging web dyno                 │
 │  ┌────────────────────────────┐  │
-│  │ Traefik proxy ($PORT)      │  │
+│  │ dyno-proxy ($PORT)         │  │
 │  │  • Weight                  │  │
 │  │  • Path                    │  │
 │  │  • Query                   │  │
@@ -140,10 +140,6 @@ Your review app keeps its own URL and [automatic deploys](https://devcenter.hero
 - 32KB config var size limit (Heroku platform limit)
 - Routing changes require a restart to take effect
 - Stats reset on dyno restart
-
-## Local Testing
-
-See [test/local/README.md](test/local/README.md) for running the proxy and routing rules locally with Docker.
 
 ## Requirements
 

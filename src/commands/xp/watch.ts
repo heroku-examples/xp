@@ -12,6 +12,7 @@ import {
   migrateToSimplified,
   createEmptySimplifiedConfig,
 } from '../../types/experiment'
+import {getGitHubConnection} from '../../utils/kolkrabbi'
 
 const debug = createDebug('heroku:xp:watch')
 
@@ -160,10 +161,7 @@ export default class Watch extends Command {
   // The branch the parent app deploys from, if its GitHub connection has one.
   private async getParentBranch(appId: string): Promise<string> {
     try {
-      const kolkrabbiUrl = process.env.HEROKU_KOLKRABBI_URL || 'https://kolkrabbi.heroku.com'
-      const {body} = await this.heroku.get<{branch?: string}>(`${kolkrabbiUrl}/apps/${appId}/github`, {
-        hostname: new URL(kolkrabbiUrl).hostname,
-      })
+      const body = await getGitHubConnection(this.heroku, appId)
       return body.branch || '-'
     } catch (error: any) {
       debug('Could not read parent app branch: %s', error.message)
@@ -340,9 +338,6 @@ export default class Watch extends Command {
     if (!metrics2) return metrics1
 
     // Combine metrics by summing counters and averaging durations
-    const totalRequests = (metrics1.total2xx + metrics1.total3xx + metrics1.total4xx + metrics1.total5xx) +
-                         (metrics2.total2xx + metrics2.total3xx + metrics2.total4xx + metrics2.total5xx)
-
     return {
       durationSum: metrics1.durationSum + metrics2.durationSum,
       durationCount: metrics1.durationCount + metrics2.durationCount,

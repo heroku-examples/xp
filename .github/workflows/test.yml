@@ -27,6 +27,12 @@ jobs:
       - name: Check xp commands were built
         run: test -f lib/commands/xp/create.js -a -f lib/commands/xp/update.js
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
   hook:
     name: Test startup hook
     runs-on: ubuntu-latest
