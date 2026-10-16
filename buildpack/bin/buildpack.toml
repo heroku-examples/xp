@@ -1,0 +1,21 @@
+api = "0.10"
+
+[buildpack]
+id = "heroku/xp"
+version = "2.0.0.v1alpha1"
+name = "Heroku XP"
+
+# Composite buildpack. It requires dyno-proxy FIRST, then runs the XP startup hook
+# (heroku/xp-src). Both are bundled as dependencies at package time (see
+# package.toml) so they are resolvable here by id/version — the CNB lifecycle
+# order groups only understand id/version, never a uri. Order is significant:
+# dyno-proxy sets $DYNO_PROXY_DIR, which xp's bin/build relies on.
+[[order]]
+
+  [[order.group]]
+  id = "heroku/dyno-proxy"
+  version = "0.0.1"
+
+  [[order.group]]
+  id = "heroku/xp-src"
+  version = "2.0.0.v1alpha1"

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  plugin:
+    name: Build plugin
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - name: Install dependencies and build
+        run: npm ci
+
+      - name: Check xp commands were built
+        run: test -f lib/commands/xp/create.js -a -f lib/commands/xp/update.js
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+  hook:
+    name: Test startup hook
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: buildpack/dyno-proxy-start-hook/go.mod
+          cache-dependency-path: buildpack/dyno-proxy-start-hook/go.sum
+
+      - name: Test
+        run: go test ./...
+        working-directory: buildpack/dyno-proxy-start-hook

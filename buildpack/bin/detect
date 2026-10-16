@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# This buildpack will always be used when specified
+exit 0
