@@ -2,7 +2,7 @@ api = "0.10"
 
 [buildpack]
 id = "heroku/xp-src"
-version = "2.0.0.v1alpha1"
+version = "0.0.1"
 name = "Heroku XP"
 
 [[targets]]
