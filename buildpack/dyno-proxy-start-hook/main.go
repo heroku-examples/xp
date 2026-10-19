@@ -228,11 +228,11 @@ type xpConfig struct {
 }
 
 type xpExperiment struct {
-	AppID     string   `json:"appID"`
-	ParentApp string   `json:"parentApp"`
-	URL       string   `json:"url"`
-	Rules     []xpRule `json:"rules"`
-	Active    *bool    `json:"active,omitempty"`
+	AppID   string   `json:"appID"`
+	RouteID string   `json:"routeID"`
+	URL     string   `json:"url"`
+	Rules   []xpRule `json:"rules"`
+	Active  *bool    `json:"active,omitempty"`
 }
 
 type xpRule struct {
@@ -276,16 +276,16 @@ type document struct {
 }
 
 type route struct {
-	Path          string            `toml:"path,omitempty"`
-	To            string            `toml:"to"`
-	Methods       []string          `toml:"methods,omitempty"`
-	Percentage    int               `toml:"percentage,omitempty"`
-	App           string            `toml:"app,omitempty"`
-	ExperimentApp string            `toml:"experimentApp,omitempty"`
-	Mirror        bool              `toml:"mirror,omitempty"`
-	Header        map[string]string `toml:"header,omitempty"`
-	Query         map[string]string `toml:"query,omitempty"`
-	Body          map[string]string `toml:"body,omitempty"`
+	Path       string            `toml:"path,omitempty"`
+	To         string            `toml:"to"`
+	Methods    []string          `toml:"methods,omitempty"`
+	Percentage int               `toml:"percentage,omitempty"`
+	ID         string            `toml:"routeID,omitempty"`
+	AppID      string            `toml:"appID,omitempty"`
+	Mirror     bool              `toml:"mirror,omitempty"`
+	Header     map[string]string `toml:"header,omitempty"`
+	Query      map[string]string `toml:"query,omitempty"`
+	Body       map[string]string `toml:"body,omitempty"`
 }
 
 // routesFromXP converts the HEROKU_XP JSON into routes. Empty input yields no
@@ -305,14 +305,14 @@ func routesFromXP(raw string) ([]route, error) {
 			continue
 		}
 		if exp.URL == "" {
-			return nil, fmt.Errorf("experiment %q is missing url", exp.AppID)
+			return nil, fmt.Errorf("experiment %q is missing url", exp.RouteID)
 		}
 		for i, rule := range exp.Rules {
 			if rule.Weight != nil && *rule.Weight == 0 {
 				continue
 			}
 			if rule.Traffic != "mirror" && rule.Traffic != "live" {
-				return nil, fmt.Errorf("experiment %q rule %d has traffic %q (want \"mirror\" or \"live\")", exp.AppID, i, rule.Traffic)
+				return nil, fmt.Errorf("experiment %q rule %d has traffic %q (want \"mirror\" or \"live\")", exp.RouteID, i, rule.Traffic)
 			}
 			var methods []string
 			for _, m := range splitList(rule.Method) {
@@ -323,7 +323,7 @@ func routesFromXP(raw string) ([]route, error) {
 				pct = *rule.Weight
 			}
 			if rule.Path == "" && methods == nil && len(rule.Header) == 0 && len(rule.Query) == 0 && len(rule.Body) == 0 {
-				return nil, fmt.Errorf("experiment %q rule %d has no matcher (path, method, header, query or body)", exp.AppID, i)
+				return nil, fmt.Errorf("experiment %q rule %d has no matcher (path, method, header, query or body)", exp.RouteID, i)
 			}
 
 			// One route per comma-separated path; a rule without a path
@@ -334,16 +334,16 @@ func routesFromXP(raw string) ([]route, error) {
 			}
 			for _, p := range paths {
 				routes = append(routes, route{
-					Path:          p,
-					To:            exp.URL,
-					Methods:       methods,
-					Percentage:    pct,
-					App:           exp.ParentApp,
-					ExperimentApp: exp.AppID,
-					Mirror:        rule.Traffic == "mirror",
-					Header:        rule.Header,
-					Query:         rule.Query,
-					Body:          rule.Body,
+					Path:       p,
+					To:         exp.URL,
+					Methods:    methods,
+					Percentage: pct,
+					ID:         exp.RouteID,
+					AppID:      exp.AppID,
+					Mirror:     rule.Traffic == "mirror",
+					Header:     rule.Header,
+					Query:      rule.Query,
+					Body:       rule.Body,
 				})
 			}
 		}

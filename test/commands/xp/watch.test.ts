@@ -131,9 +131,8 @@ describe('xp:watch', () => {
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -161,9 +160,8 @@ describe('xp:watch', () => {
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -219,9 +217,8 @@ http_request_duration_seconds_count{route="/api/orders"} 25
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -265,9 +262,8 @@ http_requests_total{route="/api/orders"} 750
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -309,9 +305,8 @@ http_request_duration_seconds_count{route="/api/users",method="GET",status="200"
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -352,9 +347,8 @@ http_request_duration_seconds_count{route="/api/users",method="GET",status="200"
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -400,9 +394,8 @@ http_request_duration_seconds_count{route="/api"} 100
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -456,9 +449,8 @@ http_request_duration_seconds_count{route="/api"} 100
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -510,9 +502,8 @@ http_request_duration_seconds_sum{invalid
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -604,9 +595,8 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -647,9 +637,8 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             rules: [],
@@ -692,17 +681,15 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app-1',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app-1.herokuapp.com',
             rules: [],
           },
           {
-            appName: 'test-exp-app-2',
-            appID: 'exp-456',
-            parentApp: 'test-app',
+            appID: 'exp-456-app-id',
+            routeID: 'exp-456',
             branch: 'feature-b',
             url: 'https://test-exp-app-2.herokuapp.com',
             rules: [],
@@ -741,9 +728,8 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             active: true,
@@ -783,9 +769,8 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-active',
             url: 'https://test-exp-app.herokuapp.com',
             active: true,
@@ -825,9 +810,8 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-inactive',
             url: 'https://test-exp-app.herokuapp.com',
             active: false,
@@ -867,9 +851,8 @@ http_requests_total{route="/api"} 1000
         version: 1,
         experiments: [
           {
-            appName: 'test-exp-app',
-            appID: 'exp-123',
-            parentApp: 'test-app',
+            appID: 'exp-123-app-id',
+            routeID: 'exp-123',
             branch: 'feature-default',
             url: 'https://test-exp-app.herokuapp.com',
             // active field is undefined

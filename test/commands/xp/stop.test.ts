@@ -59,7 +59,6 @@ describe('xp:stop', () => {
       .command(['xp:stop', '--app', 'test-parent-app', '--branch', 'feature-xyz'])
       .it('sets active: false for the experiment', (ctx: any) => {
         expect(ctx.stdout).to.contain('stopped successfully')
-        expect(ctx.stdout).to.contain('test-parent-app-feature-xyz-a1b2c3')
         expect(ctx.stdout).to.contain('inactive and will not receive traffic')
 
         // Verify HEROKU_XP config was updated with active: false
@@ -100,7 +99,6 @@ describe('xp:stop', () => {
       .command(['xp:stop', '--app', 'test-parent-app', '--branch', 'feature-xyz'])
       .it('shows info message without updating config', (ctx: any) => {
         expect(ctx.stdout).to.contain('already inactive')
-        expect(ctx.stdout).to.contain('test-parent-app-feature-xyz-a1b2c3')
 
         // Verify HEROKU_XP config was NOT updated
         expect(herokuPatchStub.called).to.be.false
@@ -172,7 +170,6 @@ describe('xp:stop', () => {
       .command(['xp:stop', '--app', 'test-parent-app', '--branch', 'new-ui'])
       .it('only stops the specified experiment, leaving others unchanged', (ctx: any) => {
         expect(ctx.stdout).to.contain('stopped successfully')
-        expect(ctx.stdout).to.contain('test-parent-app-new-ui-d4e5f6')
 
         const configUpdateCall = herokuPatchStub.getCalls().find((call: any) =>
           call.args[0] === '/apps/test-parent-app/config-vars' &&
@@ -356,60 +353,6 @@ describe('xp:stop', () => {
         expect(error.message).to.contain('No experiment found')
       })
       .it('branch name matching is case-sensitive')
-  })
-
-  describe('stopping experiment with different parent apps', () => {
-    test
-      .stub(Stop.prototype, 'heroku', stub => stub.get(() => ({
-        get: herokuGetStub,
-        patch: herokuPatchStub,
-      })))
-      .do(() => {
-
-        // Create experiments with same branch name but different parent apps
-        const experiments = [
-          createMockExperiment('feature-xyz', 'test-parent-app-feature-xyz-v1w2x3', {
-            parentApp: 'test-parent-app',
-            active: true,
-          }),
-          createMockExperiment('feature-xyz', 'other-parent-app-feature-xyz-y4z5a6', {
-            parentApp: 'other-parent-app',
-            active: true,
-          }),
-        ]
-        const existingConfig = createMockExperimentsConfig(experiments)
-        const mockConfigVars = createMockConfigVars({
-          HEROKU_XP: JSON.stringify(existingConfig),
-        })
-
-        herokuGetStub.withArgs('/apps/test-parent-app/config-vars').resolves({body: mockConfigVars})
-        herokuPatchStub.withArgs('/apps/test-parent-app/config-vars', sinon.match.any).resolves({body: {}})
-      })
-      .stdout()
-      .command(['xp:stop', '--app', 'test-parent-app', '--branch', 'feature-xyz'])
-      .it('only stops experiment matching both parent app and branch', (ctx: any) => {
-        expect(ctx.stdout).to.contain('stopped successfully')
-
-        // Verify HEROKU_XP config has correct active states
-        const configUpdateCall = herokuPatchStub.getCalls().find((call: any) =>
-          call.args[0] === '/apps/test-parent-app/config-vars' &&
-          call.args[1]?.body?.HEROKU_XP
-        )
-        expect(configUpdateCall).to.exist
-
-        const updatedConfig: ExperimentsConfig = JSON.parse(configUpdateCall!.args[1].body.HEROKU_XP)
-        expect(updatedConfig.experiments).to.have.length(2)
-
-        const testParentExp = updatedConfig.experiments.find(
-          (exp: any) => exp.parentApp === 'test-parent-app'
-        )
-        const otherParentExp = updatedConfig.experiments.find(
-          (exp: any) => exp.parentApp === 'other-parent-app'
-        )
-
-        expect(testParentExp!.active).to.equal(false) // stopped
-        expect(otherParentExp!.active).to.not.equal(false) // unchanged
-      })
   })
 
   describe('config var size and weight validation', () => {

@@ -2,7 +2,7 @@ import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
 import {
   ExperimentsConfig,
-  findExperimentByKey,
+  findExperimentByBranch,
 } from '../../types/experiment'
 import {readExperimentsConfig, writeExperimentsConfig} from '../../utils/experiments-config'
 
@@ -43,7 +43,7 @@ export default class Stop extends Command {
 
       // Step 2: Find the experiment to stop
       cli.action.start(`Finding experiment for branch "${branch}"`)
-      const experiment = findExperimentByKey(experimentsConfig, parentApp, branch)
+      const experiment = findExperimentByBranch(experimentsConfig, branch)
 
       if (!experiment) {
         cli.action.stop('✗')
@@ -51,8 +51,7 @@ export default class Stop extends Command {
         return
       }
 
-      const experimentAppName = experiment.appName
-      cli.action.stop(`✓ Found: ${experimentAppName}`)
+      cli.action.stop('✓')
 
       // Step 3: Check if already inactive
       if (experiment.active === false) {
@@ -62,7 +61,6 @@ export default class Stop extends Command {
         this.log('')
         this.log(`  Parent App:     ${parentApp}`)
         this.log(`  Branch:         ${branch}`)
-        this.log(`  Experiment App: ${experimentAppName}`)
         this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
         this.log('')
         return
@@ -73,7 +71,7 @@ export default class Stop extends Command {
       try {
         // Find the experiment index
         const experimentIndex = experimentsConfig.experiments.findIndex(
-          exp => exp.parentApp === parentApp && exp.branch === branch
+          exp => exp.branch === branch
         )
 
         if (experimentIndex === -1) {
@@ -103,7 +101,6 @@ export default class Stop extends Command {
       this.log('')
       this.log(`  Parent App:     ${parentApp}`)
       this.log(`  Branch:         ${branch}`)
-      this.log(`  Experiment App: ${experimentAppName}`)
       this.log('')
       this.log('The experiment is now inactive and will not receive traffic.')
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')

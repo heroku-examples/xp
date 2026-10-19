@@ -71,7 +71,7 @@ export function createMockExperimentsConfig(experiments: ExperimentEntry[] = [])
 /**
  * Creates a mock experiment entry (v2 simplified format)
  */
-export function createMockExperiment(branch: string, appName: string, overrides: Partial<ExperimentEntry> = {}): ExperimentEntry {
+export function createMockExperiment(branch: string, routeID: string, overrides: Partial<ExperimentEntry> = {}): ExperimentEntry {
   const defaultRule: ExperimentRule = {
     weight: 10,
     traffic: 'live',
@@ -79,9 +79,8 @@ export function createMockExperiment(branch: string, appName: string, overrides:
   }
 
   return {
-    appName,
     appID: `app-uuid-${branch}`,
-    parentApp: 'test-parent-app',
+    routeID,
     branch,
     url: `https://github.com/heroku/test-repo/tree/${branch}`,
     rules: [defaultRule],
@@ -145,9 +144,8 @@ export function validateExperimentsConfig(config: ExperimentsConfig): void {
  * Validates experiment object structure (v2 format)
  */
 export function validateExperiment(experiment: ExperimentEntry): void {
-  expect(experiment).to.have.property('appName')
   expect(experiment).to.have.property('appID')
-  expect(experiment).to.have.property('parentApp')
+  expect(experiment).to.have.property('routeID')
   expect(experiment).to.have.property('branch')
   expect(experiment).to.have.property('url')
   expect(experiment).to.have.property('rules')

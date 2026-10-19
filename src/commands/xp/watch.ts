@@ -35,7 +35,7 @@ export default class Watch extends Command {
   static description = 'Monitor experiment performance metrics in real-time'
 
   static examples = [
-    `$ heroku xp:watch --app xp-demo-staging`,
+    `$ heroku xp:watch --app my-app-staging`,
     `$ heroku xp:watch -a my-app-staging`,
   ]
 
@@ -141,7 +141,7 @@ export default class Watch extends Command {
     auth?: string
   ): Promise<ExperimentMetrics> {
     try {
-      const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
+      const metricsUrl = `${parentWebUrl}.dyno-proxy/metrics/`
       const metricsText = await this.fetchUrl(metricsUrl, auth)
 
       // Try both router labels and combine metrics
@@ -204,22 +204,22 @@ export default class Watch extends Command {
     auth?: string
   ): Promise<ExperimentMetrics> {
     try {
-      const {appName, appID, branch, active, rules} = exp
+      const {routeID, branch, active, rules} = exp
 
       // Format active status with mirror/live indicator
       const isMirror = rules && rules.length > 0 && rules[0].traffic === 'mirror'
       const mode = isMirror ? 'mirror' : 'live'
       const activeStatus = active === false ? '✗' : `✓ ${mode}`
 
-      const metricsUrl = `${parentWebUrl}/.dyno-proxy/metrics/`
+      const metricsUrl = `${parentWebUrl}.dyno-proxy/metrics/`
       const metricsText = await this.fetchUrl(metricsUrl, auth)
 
-      const routerLabel = `${appID}-experiment@file`
+      const routerLabel = `${routeID}-experiment@file`
       const metrics = this.parsePrometheusMetrics(metricsText, routerLabel)
 
       if (!metrics) {
         return {
-          experiment: appName,
+          experiment: routeID,
           branch,
           active: activeStatus,
           avgResponseTime: '',
@@ -238,7 +238,7 @@ export default class Watch extends Command {
         : ''
 
       return {
-        experiment: appName,
+        experiment: routeID,
         branch,
         active: activeStatus,
         avgResponseTime,
@@ -248,11 +248,11 @@ export default class Watch extends Command {
         total5xx: pct(metrics.total5xx),
       }
     } catch (error: any) {
-      const {appName, branch, active, rules} = exp
+      const {routeID, branch, active, rules} = exp
       const isMirror = rules && rules.length > 0 && rules[0].traffic === 'mirror'
       const mode = isMirror ? 'mirror' : 'live'
       return {
-        experiment: appName,
+        experiment: routeID,
         branch,
         active: active === false ? '✗' : `✓ ${mode}`,
         avgResponseTime: 'Error',

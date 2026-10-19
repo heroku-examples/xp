@@ -3,7 +3,7 @@ import {cli} from 'cli-ux'
 import {
   ExperimentsConfig,
   ExperimentEntry,
-  findExperimentByKey,
+  findExperimentByBranch,
 } from '../../types/experiment'
 import {readExperimentsConfig, writeExperimentsConfig} from '../../utils/experiments-config'
 
@@ -25,7 +25,7 @@ export default class Destroy extends Command {
     }),
     confirm: flags.string({
       char: 'c',
-      description: 'Confirmation string (app name) to skip interactive prompt',
+      description: 'Confirmation string (the branch name) to skip interactive prompt',
     }),
   }
 
@@ -48,7 +48,7 @@ export default class Destroy extends Command {
 
       // Step 2: Find the experiment to destroy
       cli.action.start(`Finding experiment for branch "${branch}"`)
-      const experiment = findExperimentByKey(experimentsConfig, parentApp, branch)
+      const experiment = findExperimentByBranch(experimentsConfig, branch)
 
       if (!experiment) {
         cli.action.stop('✗')
@@ -56,8 +56,7 @@ export default class Destroy extends Command {
         return
       }
 
-      const experimentAppName = experiment.appName
-      cli.action.stop(`✓ Found: ${experimentAppName}`)
+      cli.action.stop('✓')
 
       // Step 3: Confirm destruction (unless --confirm flag provided)
       if (!flags.confirm) {
@@ -67,7 +66,6 @@ export default class Destroy extends Command {
         this.log('')
         this.log(`  Parent App:     ${parentApp}`)
         this.log(`  Branch:         ${branch}`)
-        this.log(`  Experiment App: ${experimentAppName}`)
         this.log('')
         this.log('This action will:')
         this.log('  1. Remove the experiment from HEROKU_XP configuration')
@@ -76,16 +74,16 @@ export default class Destroy extends Command {
         this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
         this.log('')
 
-        const confirmation = await cli.prompt(`Type the experiment app name "${experimentAppName}" to confirm`, {
+        const confirmation = await cli.prompt(`Type the branch name "${branch}" to confirm`, {
           required: true,
         })
 
-        if (confirmation !== experimentAppName) {
+        if (confirmation !== branch) {
           this.error('Confirmation failed. Experiment was not destroyed.')
           return
         }
-      } else if (flags.confirm !== experimentAppName) {
-        this.error(`Confirmation failed: expected "${experimentAppName}" but got "${flags.confirm}"`)
+      } else if (flags.confirm !== branch) {
+        this.error(`Confirmation failed: expected "${branch}" but got "${flags.confirm}"`)
         return
       }
 
@@ -95,7 +93,7 @@ export default class Destroy extends Command {
         // Filter out the experiment
         const originalCount = experimentsConfig.experiments.length
         experimentsConfig.experiments = experimentsConfig.experiments.filter(
-          exp => !(exp.parentApp === parentApp && exp.branch === branch)
+          exp => exp.branch !== branch
         )
 
         if (experimentsConfig.experiments.length === originalCount) {
@@ -112,40 +110,17 @@ export default class Destroy extends Command {
         throw error
       }
 
-      // Step 5: Check if other experiments use the same app
-      const otherExperimentsOnSameApp = experimentsConfig.experiments.filter(
-        exp => exp.appName === experimentAppName
-      )
-
-      // Step 6: Display results
+      // Step 5: Display results
       this.log('')
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       this.log('✓ Experiment destroyed successfully!')
       this.log('')
       this.log(`  Parent App:     ${parentApp}`)
       this.log(`  Branch:         ${branch}`)
-      this.log(`  Experiment App: ${experimentAppName}`)
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       this.log('')
 
-      if (otherExperimentsOnSameApp.length > 0) {
-        this.log('⚠️  Note: Other experiments still use this app:')
-        this.log('')
-        otherExperimentsOnSameApp.forEach(exp => {
-          this.log(`  • ${exp.parentApp} / ${exp.branch}`)
-        })
-        this.log('')
-        this.log(`The app "${experimentAppName}" is still in use and should NOT be destroyed.`)
-        this.log('')
-      } else {
-        this.log('ℹ️  No other experiments use this app.')
-        this.log('')
-        this.log('Resources will need to be manually destroyed with:')
-        this.log(`  heroku apps:destroy --app ${experimentAppName} --confirm ${experimentAppName}`)
-        this.log('')
-      }
-
-      // Step 7: Show recreate command
+      // Step 6: Show recreate command
       this.log('To recreate this experiment configuration, run:')
       this.log('')
       this.log(this.buildRecreateCommand(experiment, parentApp))

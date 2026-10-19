@@ -7,9 +7,8 @@ export function createMockExperimentConfig(overrides?: any) {
     version: 1,
     experiments: [
       {
-        appName: 'test-exp-app',
-        appID: 'exp-123',
-        parentApp: 'test-app',
+        appID: 'exp-123-app-id',
+        routeID: 'exp-123',
         branch: 'feature-a',
         url: 'https://test-exp-app.herokuapp.com',
         rules: [],

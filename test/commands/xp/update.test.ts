@@ -47,11 +47,11 @@ describe('xp:update', () => {
     ]))
     .stdout()
     .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '--weight', '25'])
-    .it('changes the weight and keeps the rest of the rule', (ctx: any) => {
+    .it('replaces the rule: flags not given are cleared', (ctx: any) => {
       expect(ctx.stdout).to.contain('Updated experiment')
 
       const experiment = patchedConfig().experiments[0]
-      expect(experiment.rules[0]).to.include({weight: 25, traffic: 'live', method: 'GET', path: '/api'})
+      expect(experiment.rules[0]).to.deep.equal({weight: 25, traffic: 'mirror', method: 'GET'})
     })
 
   withStubs()
@@ -71,7 +71,7 @@ describe('xp:update', () => {
       expect(rule.path).to.equal('/a,/b')
       expect(rule.query).to.equal('xp: one')
       expect(rule.header).to.equal('x-xp: two')
-      expect(rule.weight).to.equal(10)
+      expect(rule).to.not.have.property('weight')
     })
 
   withStubs()
@@ -85,6 +85,18 @@ describe('xp:update', () => {
       const [one, two] = patchedConfig().experiments
       expect(one.rules[0].weight).to.equal(10)
       expect(two.rules[0].weight).to.equal(30)
+    })
+
+  withStubs()
+    .do(() => givenExperiments([
+      createMockExperiment('feature-xyz', 'exp-app', {
+        rules: [{weight: 10, traffic: 'live', method: 'POST', path: '/api'}],
+      }),
+    ]))
+    .stdout()
+    .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '-q', 'x=1'])
+    .it('does not carry over weight, path or traffic when only --query is given', () => {
+      expect(patchedConfig().experiments[0].rules[0]).to.deep.equal({traffic: 'mirror', method: 'GET', query: 'x: 1'})
     })
 
   withStubs()
@@ -103,8 +115,8 @@ describe('xp:update', () => {
     ]))
     .stdout()
     .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '--weight', '20'])
-    .it('keeps the existing methods when --methods is not given', () => {
-      expect(patchedConfig().experiments[0].rules[0].method).to.equal('POST')
+    .it('resets the method to GET when --methods is not given', () => {
+      expect(patchedConfig().experiments[0].rules[0].method).to.equal('GET')
     })
 
   withStubs()

@@ -43,7 +43,7 @@ export default class Start extends Command {
       // Step 2: Find experiment by branch
       cli.action.start(`Finding experiment for branch "${branch}"`)
       const experimentIndex = experimentsConfig.experiments.findIndex(
-        exp => exp.branch === branch && exp.parentApp === parentApp
+        exp => exp.branch === branch
       )
 
       if (experimentIndex === -1) {
@@ -52,7 +52,7 @@ export default class Start extends Command {
       }
 
       const experiment = experimentsConfig.experiments[experimentIndex]
-      cli.action.stop(`✓ Found: ${experiment.appName}`)
+      cli.action.stop('✓')
 
       // Step 3: Check if already active
       if (experiment.active !== false) {
@@ -81,7 +81,6 @@ export default class Start extends Command {
       this.log(`✓ Experiment started successfully!`)
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       this.log('')
-      this.log(`  App:          ${experiment.appName}`)
       this.log(`  Branch:       ${branch}`)
       this.log(`  Parent:       ${parentApp}`)
       this.log(`  Status:       Active`)

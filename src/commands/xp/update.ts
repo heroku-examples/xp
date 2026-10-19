@@ -1,14 +1,14 @@
 import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
-import {formatRoute, parseMethods, validateRoutingFlags} from '../../utils/routing'
+import {buildRule, formatRoute, validateRoutingFlags} from '../../utils/routing'
 import {
   ExperimentEntry,
-  findExperimentByKey,
+  findExperimentByBranch,
 } from '../../types/experiment'
 import {readExperimentsConfig, writeExperimentsConfig} from '../../utils/experiments-config'
 
 export default class Update extends Command {
-  static description = 'Update experiment routing configuration (HEROKU_XP only)'
+  static description = 'Replace an experiment\'s routing rule (routing flags that are not given are cleared)'
 
   static examples = [
     `$ heroku xp:update --app my-app-staging --branch feature-xyz --weight 20`,
@@ -71,7 +71,7 @@ export default class Update extends Command {
       const experimentsConfig = await readExperimentsConfig(this.heroku, parentApp, {required: true})
 
       // Step 3: Find experiment by branch
-      const existingExperiment = findExperimentByKey(experimentsConfig, parentApp, branch)
+      const existingExperiment = findExperimentByBranch(experimentsConfig, branch)
       if (!existingExperiment) {
         throw new Error(`No experiment found for branch "${branch}" on app "${parentApp}"`)
       }
@@ -81,7 +81,7 @@ export default class Update extends Command {
 
       // Step 5: Replace in config
       const index = experimentsConfig.experiments.findIndex(
-        exp => exp.parentApp === parentApp && exp.branch === branch
+        exp => exp.branch === branch
       )
       if (index !== -1) {
         experimentsConfig.experiments[index] = updatedExperiment
@@ -136,60 +136,10 @@ export default class Update extends Command {
     flags: any
   ): ExperimentEntry {
 
-    // Build rules array
-    const rules: any[] = []
-
-    // Create rule if any routing parameters exist
+    // Routing flags replace the rule; any that aren't given are cleared.
+    // Without routing flags the existing rules are kept.
     const hasRoutingConfig = flags.weight !== undefined || flags.path || flags.query || flags.header || flags.methods || flags.traffic !== undefined
-
-    if (hasRoutingConfig) {
-      const rule: any = {}
-
-      // Keep the existing traffic setting or default to mirror
-      rule.traffic = flags.traffic ?? existingExperiment.rules?.[0]?.traffic ?? 'mirror'
-
-      if (flags.weight !== undefined) {
-        rule.weight = flags.weight
-      } else if (existingExperiment.rules?.[0]?.weight !== undefined) {
-        // Keep existing weight
-        rule.weight = existingExperiment.rules[0].weight
-      }
-
-      // Convert path array to comma-separated string
-      if (flags.path && Array.isArray(flags.path)) {
-        rule.path = flags.path.join(',')
-      } else if (existingExperiment.rules?.[0]?.path) {
-        // Keep existing path
-        rule.path = existingExperiment.rules[0].path
-      }
-
-      // Convert query array to string format "key: value"
-      if (flags.query && Array.isArray(flags.query)) {
-        const [key, value] = flags.query[0].split('=')
-        rule.query = `${key}: ${value}`
-      } else if (existingExperiment.rules?.[0]?.query) {
-        // Keep existing query
-        rule.query = existingExperiment.rules[0].query
-      }
-
-      // Convert header array to string format "key: value"
-      if (flags.header && Array.isArray(flags.header)) {
-        const [key, value] = flags.header[0].split('=')
-        rule.header = `${key}: ${value}`
-      } else if (existingExperiment.rules?.[0]?.header) {
-        // Keep existing header
-        rule.header = existingExperiment.rules[0].header
-      }
-
-      rule.method = parseMethods(flags.methods) ?? existingExperiment.rules?.[0]?.method ?? 'GET'
-
-      rules.push(rule)
-    } else {
-      // No routing config provided, keep existing rules
-      if (existingExperiment.rules && existingExperiment.rules.length > 0) {
-        rules.push(...existingExperiment.rules)
-      }
-    }
+    const rules = hasRoutingConfig ? [buildRule(flags)] : existingExperiment.rules
 
     return {
       ...existingExperiment,

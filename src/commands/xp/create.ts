@@ -2,7 +2,7 @@ import {Command, flags as flagTypes} from '@heroku-cli/command'
 import {spawnSync} from 'child_process'
 import {cli} from 'cli-ux'
 import * as crypto from 'crypto'
-import {ExperimentEntry, ExperimentRule, findExperimentByKey} from '../../types/experiment'
+import {ExperimentEntry, findExperimentByBranch} from '../../types/experiment'
 import {readExperimentsConfig, writeExperimentsConfig} from '../../utils/experiments-config'
 import {
   ensureBuildpack,
@@ -14,11 +14,17 @@ import {
   sanitizeErrorMessage,
   waitForRelease,
 } from '../../utils/heroku-api'
-import {formatRoute, parseMethods, validateRoutingFlags} from '../../utils/routing'
+import {buildRule, formatRoute, validateRoutingFlags} from '../../utils/routing'
 
 const XP_BUILDPACK_URL = 'https://github.com/heroku-examples/xp/releases/latest/download/xp-buildpack.tgz'
 
 const MAX_EXPERIMENTS = 50
+
+const ROUTE_ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+function randomRouteID(): string {
+  return Array.from({length: 10}, () => ROUTE_ID_ALPHABET[crypto.randomInt(ROUTE_ID_ALPHABET.length)]).join('')
+}
 
 export default class Create extends Command {
   static description = 'Route traffic to a branch\'s review app'
@@ -27,7 +33,7 @@ export default class Create extends Command {
     `$ heroku xp:create --app my-app-staging --branch feature-xyz`,
     `$ heroku xp:create --app my-app-staging --branch new-ui --weight 10`,
     `$ heroku xp:create --app my-app-staging --branch api-v2 --path /api/v2`,
-    `$ heroku xp:create -a xp-demo-staging -b 1-green --weight 50 --path '/*' --traffic live`,
+    `$ heroku xp:create -a my-app-staging -b 1-green --weight 50 --path '/*' --traffic live`,
   ]
 
   static flags: any = {
@@ -117,16 +123,14 @@ export default class Create extends Command {
       experimentsConfig.metrics_user ??= crypto.randomBytes(8).toString('hex')
       experimentsConfig.metrics_secret ??= crypto.randomBytes(24).toString('hex')
 
-      // An experiment is keyed by parent app and branch.
-      const existingExperiment = findExperimentByKey(experimentsConfig, parentApp, branch)
+      // An experiment is keyed by branch.
+      const existingExperiment = findExperimentByBranch(experimentsConfig, branch)
       const isUpdate = Boolean(existingExperiment)
       if (!isUpdate && experimentsConfig.experiments.length >= MAX_EXPERIMENTS) {
         throw new Error(`${parentApp} already has the maximum of ${MAX_EXPERIMENTS} experiments`)
       }
 
-      // An update keeps its review app.
-      const experimentAppName = existingExperiment?.appName ??
-        await this.resolveReviewApp(parentApp, parentAppData.id, branch, flags['create-review-app'])
+      const experimentAppName = await this.resolveReviewApp(parentApp, parentAppData.id, branch, flags['create-review-app'])
       const experimentApp = await getApp(this.heroku, experimentAppName)
 
       if (!isUpdate) {
@@ -137,12 +141,11 @@ export default class Create extends Command {
       }
 
       const newExperiment: ExperimentEntry = {
-        appName: experimentAppName,
         appID: experimentApp.id,
-        parentApp,
+        routeID: existingExperiment?.routeID ?? randomRouteID(),
         branch,
         url: experimentApp.web_url || '',
-        rules: [this.buildRule({...flags, weight, traffic})],
+        rules: [buildRule({...flags, weight, traffic})],
       }
 
       if (existingExperiment) {
@@ -179,47 +182,17 @@ export default class Create extends Command {
     }
   }
 
-  private buildRule(flags: {
-    weight?: number
-    traffic?: string
-    path?: string[]
-    query?: string[]
-    header?: string[]
-    methods?: string[]
-  }): ExperimentRule {
-    // "key=value" becomes "key: value"; only the first of several is used.
-    const keyValue = (kind: string, raw: string) => {
-      const [key, ...rest] = raw.split('=')
-      const value = rest.join('=')
-      for (const part of [key, value]) {
-        if (/[\r\n]/.test(part)) {
-          throw new Error(`Invalid ${kind}: contains newline characters`)
-        }
-      }
-
-      return `${key}: ${value}`
-    }
-
-    const rule: ExperimentRule = {
-      traffic: flags.traffic === 'live' ? 'live' : 'mirror',
-      method: parseMethods(flags.methods) ?? 'GET',
-    }
-    if (flags.weight !== undefined) rule.weight = flags.weight
-    if (flags.path) rule.path = flags.path.join(',')
-    if (flags.query) rule.query = keyValue('query', flags.query[0])
-    if (flags.header) rule.header = keyValue('header', flags.header[0])
-
-    return rule
-  }
-
   private async ensureXpBuildpack(appName: string): Promise<void> {
     try {
-      await ensureBuildpack(
+      const added = await ensureBuildpack(
         this.heroku,
         appName,
         XP_BUILDPACK_URL,
         url => url.includes('heroku-examples/xp') || url.includes('dyno-proxy-buildpack'),
       )
+      if (added) {
+        this.warn(`Added the XP buildpack to ${appName}. Rebuild the app (redeploy it, or push an empty commit) for it to take effect.`)
+      }
     } catch (error: any) {
       if (isCnbError(error)) {
         // CNB apps take their buildpacks from project.toml.

@@ -1,4 +1,4 @@
-import {ExperimentEntry} from '../types/experiment'
+import {ExperimentEntry, ExperimentRule} from '../types/experiment'
 
 const HTTP_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
@@ -46,7 +46,41 @@ export function validateRoutingFlags(branch: string, flags: {[flag: string]: any
   }
 }
 
-/** A one-line summary of an experiment's first rule, e.g. `10% /api (+1) ?xp: a`. */
+/** Builds an experiment rule from routing flags. Flags that aren't given are left out (method defaults to GET, traffic to mirror). */
+export function buildRule(flags: {
+  weight?: number
+  traffic?: string
+  path?: string[]
+  query?: string[]
+  header?: string[]
+  methods?: string[]
+}): ExperimentRule {
+  // "key=value" becomes "key: value"; only the first of several is used.
+  const keyValue = (kind: string, raw: string) => {
+    const [key, ...rest] = raw.split('=')
+    const value = rest.join('=')
+    for (const part of [key, value]) {
+      if (/[\r\n]/.test(part)) {
+        throw new Error(`Invalid ${kind}: contains newline characters`)
+      }
+    }
+
+    return `${key}: ${value}`
+  }
+
+  const rule: ExperimentRule = {
+    traffic: flags.traffic === 'live' ? 'live' : 'mirror',
+    method: parseMethods(flags.methods) ?? 'GET',
+  }
+  if (flags.weight !== undefined) rule.weight = flags.weight
+  if (flags.path) rule.path = flags.path.join(',')
+  if (flags.query) rule.query = keyValue('query', flags.query[0])
+  if (flags.header) rule.header = keyValue('header', flags.header[0])
+
+  return rule
+}
+
+/** A one-line summary of an experiment's first rule, e.g. `10% /api (+1) ?xp=a`. */
 export function formatRoute(exp: ExperimentEntry): string {
   const rule = exp.rules?.[0]
   if (!rule) return '-'
@@ -59,8 +93,10 @@ export function formatRoute(exp: ExperimentEntry): string {
     parts.push(paths.length > 1 ? `${paths[0]} (+${paths.length - 1})` : paths[0])
   }
 
-  if (rule.query) parts.push(`?${rule.query}`)
-  if (rule.header) parts.push(`header:${rule.header}`)
+  // Stored as "key: value"; shown as key=value, like the flags.
+  const keyValue = (stored: string) => stored.replace(/:\s*/, '=')
+  if (rule.query) parts.push(`?${keyValue(rule.query)}`)
+  if (rule.header) parts.push(`header:${keyValue(rule.header)}`)
 
   return parts.length > 0 ? parts.join(' ') : '-'
 }

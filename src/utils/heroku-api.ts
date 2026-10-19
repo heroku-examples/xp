@@ -83,15 +83,15 @@ export function isCnbError(error: any): boolean {
   return sanitizeErrorMessage(error).includes('Cloud Native Buildpacks')
 }
 
-/** Appends a buildpack to the app unless one matching `isInstalled` is already there. */
+/** Appends a buildpack to the app unless one matching `isInstalled` is already there. Returns whether it was added. */
 export async function ensureBuildpack(
   heroku: APIClient,
   appName: string,
   url: string,
   isInstalled: (installedUrl: string) => boolean,
-): Promise<void> {
+): Promise<boolean> {
   const {body: installed} = await heroku.get<BuildpackInstallation[]>(`/apps/${appName}/buildpack-installations`)
-  if (installed.some(bp => isInstalled(bp.buildpack.url))) return
+  if (installed.some(bp => isInstalled(bp.buildpack.url))) return false
 
   await heroku.put(`/apps/${appName}/buildpack-installations`, {
     body: {
@@ -101,6 +101,7 @@ export async function ensureBuildpack(
       ],
     },
   })
+  return true
 }
 
 /**

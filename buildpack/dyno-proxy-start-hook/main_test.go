@@ -14,7 +14,7 @@ const xpJSON = `{
   "version": 2,
   "experiments": [
     {
-      "appName": "my-app-exp-a", "appID": "exp-a", "parentApp": "my-app",
+      "appID": "app-a", "routeID": "exp-a",
       "url": "https://exp-a.herokuapp.com",
       "rules": [
         {"weight": 25, "traffic": "mirror", "method": "get, post", "path": "/api,/v2"},
@@ -22,11 +22,11 @@ const xpJSON = `{
       ]
     },
     {
-      "appID": "exp-off", "parentApp": "my-app", "url": "https://off.herokuapp.com",
+      "routeID": "exp-off", "url": "https://off.herokuapp.com",
       "active": false, "rules": [{"traffic": "live", "path": "/off"}]
     },
     {
-      "appID": "exp-b", "parentApp": "my-app", "url": "https://exp-b.herokuapp.com",
+      "routeID": "exp-b", "url": "https://exp-b.herokuapp.com",
       "rules": [{"traffic": "live", "path": "/zero", "weight": 0}, {"traffic": "live", "header": {"x-xp": "b"}}]
     }
   ]
@@ -72,7 +72,7 @@ func TestConvertsXPToRoutes(t *testing.T) {
 
 	r := routes[0]
 	if r["path"] != "/api" || r["to"] != "https://exp-a.herokuapp.com" || r["percentage"] != int64(25) ||
-		r["mirror"] != true || r["app"] != "my-app" || r["experimentApp"] != "exp-a" {
+		r["mirror"] != true || r["routeID"] != "exp-a" || r["appID"] != "app-a" {
 		t.Errorf("route 0 = %v", r)
 	}
 	if m := r["methods"].([]any); len(m) != 2 || m[0] != "GET" || m[1] != "POST" {
@@ -141,11 +141,11 @@ func TestRemovesBlockWhenXPUnset(t *testing.T) {
 func TestInvalidXPDoesNotFail(t *testing.T) {
 	for name, xp := range map[string]string{
 		"bad json":        "not json{",
-		"missing url":     `{"experiments":[{"appID":"x","rules":[{"traffic":"live","path":"/"}]}]}`,
-		"no matcher":      `{"experiments":[{"appID":"x","url":"https://x","rules":[{"traffic":"mirror"}]}]}`,
-		"no traffic":      `{"experiments":[{"appID":"x","url":"https://x","rules":[{"path":"/","mirror":true}]}]}`,
-		"unknown traffic": `{"experiments":[{"appID":"x","url":"https://x","rules":[{"path":"/","traffic":"both"}]}]}`,
-		"bad matcher":     `{"experiments":[{"appID":"x","url":"https://x","rules":[{"traffic":"live","header":"nocolon"}]}]}`,
+		"missing url":     `{"experiments":[{"routeID":"x","rules":[{"traffic":"live","path":"/"}]}]}`,
+		"no matcher":      `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"traffic":"mirror"}]}]}`,
+		"no traffic":      `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"path":"/","mirror":true}]}]}`,
+		"unknown traffic": `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"path":"/","traffic":"both"}]}]}`,
+		"bad matcher":     `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"traffic":"live","header":"nocolon"}]}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			path, _, stderr, err := runHook(t, "", map[string]string{"HEROKU_XP": xp})
@@ -199,8 +199,8 @@ func TestProjectTomlEnvOverride(t *testing.T) {
 // `heroku xp --traffic mirror|live` is stored as rule.traffic and written as mirror = true (live omits it).
 func TestTrafficMirrorAndLive(t *testing.T) {
 	xp := `{"experiments":[
-	  {"appID":"m","parentApp":"p","url":"https://m.example.com","rules":[{"traffic":"mirror","weight":10,"method":"GET"}]},
-	  {"appID":"l","parentApp":"p","url":"https://l.example.com","rules":[{"traffic":"live","weight":10,"method":"GET"}]}
+	  {"routeID":"m","url":"https://m.example.com","rules":[{"traffic":"mirror","weight":10,"method":"GET"}]},
+	  {"routeID":"l","url":"https://l.example.com","rules":[{"traffic":"live","weight":10,"method":"GET"}]}
 	]}`
 	path, _, stderr, err := runHook(t, "", map[string]string{"HEROKU_XP": xp})
 	if err != nil {

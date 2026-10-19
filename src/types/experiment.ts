@@ -8,9 +8,8 @@ export interface ExperimentRule {
 }
 
 export interface ExperimentEntry {
-  appName: string  // Experiment app name (e.g., "my-app-staging-exp-new-ui-a7f3d")
-  appID: string  // App UUID
-  parentApp: string  // Parent/source app name for composite key lookup
+  appID: string  // ID of the review app the url points to
+  routeID: string  // Random ID generated when the experiment is created; never changes
   branch: string
   url: string
   rules: ExperimentRule[]
@@ -45,14 +44,11 @@ export function parseExperimentsConfig(configStr: string): ExperimentsConfig {
 }
 
 /**
- * Find experiment by parentApp + branch (composite key)
+ * Find an experiment by branch. The config lives on the staging app, so the
+ * branch is unique within it.
  */
-export function findExperimentByKey(
-  config: ExperimentsConfig,
-  parentApp: string,
-  branch: string
-): ExperimentEntry | undefined {
-  return config.experiments.find(exp => exp.parentApp === parentApp && exp.branch === branch)
+export function findExperimentByBranch(config: ExperimentsConfig, branch: string): ExperimentEntry | undefined {
+  return config.experiments.find(exp => exp.branch === branch)
 }
 
 /**

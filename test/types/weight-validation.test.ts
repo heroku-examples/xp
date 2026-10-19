@@ -9,9 +9,8 @@ describe('validateWeights', () => {
   // Helper to create a minimal experiment
   function createExperiment(overrides: Partial<ExperimentEntry>): ExperimentEntry {
     return {
-      appName: 'test-exp',
-      appID: 'exp-123',
-      parentApp: 'test-app',
+      appID: 'exp-123-app-id',
+      routeID: 'exp-123',
       branch: 'test-branch',
       url: 'https://test.herokuapp.com',
       rules: [],
@@ -26,11 +25,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
         ],
@@ -44,11 +45,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 30}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 40}],
           }),
         ],
@@ -62,11 +65,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 60}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
         ],
@@ -80,7 +85,8 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 0}],
           }),
         ],
@@ -94,11 +100,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET'}], // no weight
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
         ],
@@ -114,11 +122,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api/v2', method: 'GET', weight: 50}],
           }),
         ],
@@ -133,15 +143,18 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api/v2', method: 'GET', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-3',
+            appID: 'exp-3-app-id',
+            routeID: 'exp-3',
             rules: [{path: '/admin', method: 'GET', weight: 50}],
           }),
         ],
@@ -158,11 +171,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', query: 'version: 1', method: 'GET', weight: 60}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', query: 'version: 2', method: 'GET', weight: 60}],
           }),
         ],
@@ -179,11 +194,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', header: 'X-Beta: true', method: 'GET', weight: 70}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', header: 'X-Beta: false', method: 'GET', weight: 70}],
           }),
         ],
@@ -200,11 +217,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'POST', weight: 50}],
           }),
         ],
@@ -219,11 +238,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 100}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'POST', weight: 100}],
           }),
         ],
@@ -240,7 +261,8 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{
               path: '/api',
               query: 'beta: true',
@@ -250,7 +272,8 @@ describe('validateWeights', () => {
             }],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{
               path: '/api',
               query: 'beta: true',
@@ -270,11 +293,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api/users', method: 'POST', weight: 70}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api/users', method: 'POST', weight: 40}],
           }),
         ],
@@ -297,12 +322,14 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
             active: true,
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 60}],
             active: false, // inactive
           }),
@@ -318,12 +345,14 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 60}],
             // active is undefined (defaults to true)
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 50}],
             active: true,
           }),
@@ -341,11 +370,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50, traffic: 'mirror'}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 60}],
           }),
         ],
@@ -360,15 +391,18 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
           createExperiment({
-            appName: 'exp-3',
+            appID: 'exp-3-app-id',
+            routeID: 'exp-3',
             rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
         ],
@@ -383,15 +417,18 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 100, traffic: 'mirror'}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 60}],
           }),
           createExperiment({
-            appName: 'exp-3',
+            appID: 'exp-3-app-id',
+            routeID: 'exp-3',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
         ],
@@ -417,7 +454,8 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [],
           }),
         ],
@@ -431,7 +469,8 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: undefined as any,
           }),
         ],
@@ -445,11 +484,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{weight: 50}], // no path, query, header, method
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{weight: 50}], // no path, query, header, method
           }),
         ],
@@ -464,11 +505,13 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: undefined, method: 'GET', weight: 60}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{method: 'GET', weight: 50}], // path implicitly undefined
           }),
         ],
@@ -486,25 +529,30 @@ describe('validateWeights', () => {
         experiments: [
           // Group 1: /api GET - 100% (valid)
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 60}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 40}],
           }),
           // Group 2: /api POST - 90% (valid)
           createExperiment({
-            appName: 'exp-3',
+            appID: 'exp-3-app-id',
+            routeID: 'exp-3',
             rules: [{path: '/api', method: 'POST', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-4',
+            appID: 'exp-4-app-id',
+            routeID: 'exp-4',
             rules: [{path: '/api', method: 'POST', weight: 40}],
           }),
           // Group 3: /admin GET - 100% (valid)
           createExperiment({
-            appName: 'exp-5',
+            appID: 'exp-5-app-id',
+            routeID: 'exp-5',
             rules: [{path: '/admin', method: 'GET', weight: 100}],
           }),
         ],
@@ -519,20 +567,24 @@ describe('validateWeights', () => {
         experiments: [
           // Group 1: /api GET - 90% (valid)
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 40}],
           }),
           // Group 2: /api POST - 110% (INVALID)
           createExperiment({
-            appName: 'exp-3',
+            appID: 'exp-3-app-id',
+            routeID: 'exp-3',
             rules: [{path: '/api', method: 'POST', weight: 60}],
           }),
           createExperiment({
-            appName: 'exp-4',
+            appID: 'exp-4-app-id',
+            routeID: 'exp-4',
             rules: [{path: '/api', method: 'POST', weight: 50}],
           }),
         ],
@@ -546,22 +598,26 @@ describe('validateWeights', () => {
         version: 1,
         experiments: [
           createExperiment({
-            appName: 'exp-1',
+            appID: 'exp-1-app-id',
+            routeID: 'exp-1',
             rules: [{path: '/api', method: 'GET', weight: 50}],
             active: true,
           }),
           createExperiment({
-            appName: 'exp-2',
+            appID: 'exp-2-app-id',
+            routeID: 'exp-2',
             rules: [{path: '/api', method: 'GET', weight: 60}],
             active: false, // inactive - should be ignored
           }),
           createExperiment({
-            appName: 'exp-3',
+            appID: 'exp-3-app-id',
+            routeID: 'exp-3',
             rules: [{path: '/api', method: 'GET', weight: 40, traffic: 'mirror'}],
             active: true, // mirror - should be ignored
           }),
           createExperiment({
-            appName: 'exp-4',
+            appID: 'exp-4-app-id',
+            routeID: 'exp-4',
             rules: [{path: '/api', method: 'GET', weight: 30}],
             active: true,
           }),

@@ -10,7 +10,7 @@ export default class List extends Command {
   static description = 'List all experiments configured in HEROKU_XP'
 
   static examples = [
-    `$ heroku xp:list --app xp-demo-staging`,
+    `$ heroku xp:list --app my-app-staging`,
     `$ heroku xp:list -a my-app-staging`,
   ]
 
