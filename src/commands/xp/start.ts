@@ -1,8 +1,5 @@
 import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
-import {
-  ExperimentsConfig,
-} from '../../types/experiment'
 import {readExperimentsConfig, writeExperimentsConfig} from '../../utils/experiments-config'
 
 export default class Start extends Command {
@@ -29,51 +26,23 @@ export default class Start extends Command {
     const branch = flags.branch
 
     try {
-      // Step 1: Read HEROKU_XP config var
-      cli.action.start('Reading experiment configuration')
-      let experimentsConfig: ExperimentsConfig
-      try {
-        experimentsConfig = await readExperimentsConfig(this.heroku, parentApp, {required: true})
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      cli.action.start('Starting experiment')
+      const experimentsConfig = await readExperimentsConfig(this.heroku, parentApp, {required: true})
+      const experiment = experimentsConfig.experiments.find(exp => exp.branch === branch)
 
-      // Step 2: Find experiment by branch
-      cli.action.start(`Finding experiment for branch "${branch}"`)
-      const experimentIndex = experimentsConfig.experiments.findIndex(
-        exp => exp.branch === branch
-      )
-
-      if (experimentIndex === -1) {
-        cli.action.stop('✗')
+      if (!experiment) {
         throw new Error(`No experiment found for branch "${branch}" on app "${parentApp}"`)
       }
 
-      const experiment = experimentsConfig.experiments[experimentIndex]
-      cli.action.stop('✓')
-
-      // Step 3: Check if already active
       if (experiment.active !== false) {
+        cli.action.stop('')
         this.log(`\nExperiment "${branch}" is already active.`)
         return
       }
 
-      // Step 4: Remove active: false flag
-      cli.action.start('Activating experiment')
       delete experiment.active
-
-      // Update the config
-      experimentsConfig.experiments[experimentIndex] = experiment
-
-      try {
-        await writeExperimentsConfig(this.heroku, parentApp, experimentsConfig)
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      await writeExperimentsConfig(this.heroku, parentApp, experimentsConfig)
+      cli.action.stop('')
 
       // Success message
       this.log('')

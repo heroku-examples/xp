@@ -1,7 +1,6 @@
 import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
 import {
-  ExperimentsConfig,
   ExperimentEntry,
   findExperimentByBranch,
 } from '../../types/experiment'
@@ -23,10 +22,6 @@ export default class Destroy extends Command {
       description: 'GitHub branch name of the experiment to destroy',
       required: true,
     }),
-    confirm: flags.string({
-      char: 'c',
-      description: 'Confirmation string (the branch name) to skip interactive prompt',
-    }),
   }
 
   async run() {
@@ -35,19 +30,8 @@ export default class Destroy extends Command {
     const branch = flags.branch
 
     try {
-      // Step 1: Fetch HEROKU_XP config
-      cli.action.start('Fetching experiment configuration')
-      let experimentsConfig: ExperimentsConfig
-      try {
-        experimentsConfig = await readExperimentsConfig(this.heroku, parentApp)
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
-
-      // Step 2: Find the experiment to destroy
-      cli.action.start(`Finding experiment for branch "${branch}"`)
+      cli.action.start('Destroying experiment')
+      const experimentsConfig = await readExperimentsConfig(this.heroku, parentApp)
       const experiment = findExperimentByBranch(experimentsConfig, branch)
 
       if (!experiment) {
@@ -56,61 +40,11 @@ export default class Destroy extends Command {
         return
       }
 
-      cli.action.stop('✓')
+      experimentsConfig.experiments = experimentsConfig.experiments.filter(exp => exp.branch !== branch)
+      await writeExperimentsConfig(this.heroku, parentApp, experimentsConfig)
+      cli.action.stop('')
 
-      // Step 3: Confirm destruction (unless --confirm flag provided)
-      if (!flags.confirm) {
-        this.log('')
-        this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-        this.log('⚠️  WARNING: This will destroy the following experiment:')
-        this.log('')
-        this.log(`  Parent App:     ${parentApp}`)
-        this.log(`  Branch:         ${branch}`)
-        this.log('')
-        this.log('This action will:')
-        this.log('  1. Remove the experiment from HEROKU_XP configuration')
-        this.log('  2. Stop routing traffic to the experiment app')
-        this.log('')
-        this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-        this.log('')
-
-        const confirmation = await cli.prompt(`Type the branch name "${branch}" to confirm`, {
-          required: true,
-        })
-
-        if (confirmation !== branch) {
-          this.error('Confirmation failed. Experiment was not destroyed.')
-          return
-        }
-      } else if (flags.confirm !== branch) {
-        this.error(`Confirmation failed: expected "${branch}" but got "${flags.confirm}"`)
-        return
-      }
-
-      // Step 4: Remove experiment from config
-      cli.action.start('Removing experiment from configuration')
-      try {
-        // Filter out the experiment
-        const originalCount = experimentsConfig.experiments.length
-        experimentsConfig.experiments = experimentsConfig.experiments.filter(
-          exp => exp.branch !== branch
-        )
-
-        if (experimentsConfig.experiments.length === originalCount) {
-          cli.action.stop('✗')
-          this.error('Failed to remove experiment from configuration (not found in array)')
-          return
-        }
-
-        // Update the config
-        await writeExperimentsConfig(this.heroku, parentApp, experimentsConfig)
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
-
-      // Step 5: Display results
+      // Display results
       this.log('')
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       this.log('✓ Experiment destroyed successfully!')
@@ -120,13 +54,14 @@ export default class Destroy extends Command {
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       this.log('')
 
-      // Step 6: Show recreate command
+      // Show recreate command
       this.log('To recreate this experiment configuration, run:')
       this.log('')
       this.log(this.buildRecreateCommand(experiment, parentApp))
       this.log('')
 
     } catch (error: any) {
+      cli.action.stop('✗')
       this.error(`Failed to destroy experiment: ${error.message}`)
     }
   }
@@ -151,11 +86,7 @@ export default class Destroy extends Command {
       }
 
       if (rule.path) {
-        // Split comma-separated paths and add multiple --path flags
-        const paths = rule.path.split(',').map(p => p.trim())
-        paths.forEach(path => {
-          parts.push(`--path "${path}"`)
-        })
+        parts.push(`--path "${rule.path}"`)
       }
 
       if (rule.query) {
@@ -174,8 +105,8 @@ export default class Destroy extends Command {
         }
       }
 
-      if (rule.method && rule.method !== 'GET') {
-        parts.push(`--methods ${rule.method}`)
+      if (rule.methods && rule.methods !== 'GET') {
+        parts.push(`--methods ${rule.methods}`)
       }
     }
 

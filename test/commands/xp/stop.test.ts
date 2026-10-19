@@ -363,9 +363,9 @@ describe('xp:stop', () => {
       })))
       .do(() => {
         const experiments = [
-          createMockExperiment('exp-1', 'app-1', {rules: [{weight: 50, traffic: 'live', method: 'GET'}]}),
-          createMockExperiment('exp-2', 'app-2', {rules: [{weight: 30, traffic: 'live', method: 'GET'}]}),
-          createMockExperiment('exp-3', 'app-3', {rules: [{weight: 10, traffic: 'live', method: 'GET'}]}),
+          createMockExperiment('exp-1', 'app-1', {rules: [{weight: 50, traffic: 'live', methods: 'GET'}]}),
+          createMockExperiment('exp-2', 'app-2', {rules: [{weight: 30, traffic: 'live', methods: 'GET'}]}),
+          createMockExperiment('exp-3', 'app-3', {rules: [{weight: 10, traffic: 'live', methods: 'GET'}]}),
         ]
         const existingConfig = createMockExperimentsConfig(experiments)
         const mockConfigVars = createMockConfigVars({
@@ -411,7 +411,7 @@ describe('xp:stop', () => {
               query: 'beta: true',
               header: 'x-experiment: enabled',
               traffic: 'mirror',
-              method: 'POST',
+              methods: 'POST',
             }],
             active: true,
           }),
@@ -446,7 +446,7 @@ describe('xp:stop', () => {
         expect(experiment.rules![0].query).to.equal('beta: true')
         expect(experiment.rules![0].header).to.equal('x-experiment: enabled')
         expect(experiment.rules![0].traffic).to.equal('mirror')
-        expect(experiment.rules![0].method).to.equal('POST')
+        expect(experiment.rules![0].methods).to.equal('POST')
       })
   })
 })

@@ -50,23 +50,19 @@ export default class Create extends Command {
     }),
     path: flagTypes.string({
       char: 'p',
-      description: 'Path-based routing (can specify multiple)',
-      multiple: true,
+      description: 'Path-based routing',
     }),
     query: flagTypes.string({
       char: 'q',
       description: 'Query parameter routing (format: key=value)',
-      multiple: true,
     }),
     header: flagTypes.string({
       char: 'H',
       description: 'Header-based routing (format: key=value)',
-      multiple: true,
     }),
     methods: flagTypes.string({
       char: 'm',
-      description: 'HTTP methods to route (comma-separated or repeated, e.g. GET,POST)',
-      multiple: true,
+      description: 'HTTP methods to route, comma-separated (e.g. GET,POST)',
     }),
     'create-review-app': flagTypes.boolean({
       description: 'Create the branch\'s review app without asking if it does not exist',
@@ -84,7 +80,7 @@ export default class Create extends Command {
     const branch = flags.branch
 
     try {
-      let {weight, traffic} = flags
+      let {weight, traffic, methods} = flags
       const hasRoutingConfig = weight !== undefined || flags.path || flags.query || flags.header || flags.methods || traffic !== undefined
 
       if (!hasRoutingConfig) {
@@ -110,6 +106,7 @@ export default class Create extends Command {
 
         weight = 10
         traffic = 'mirror'
+        methods = ['GET']
       }
 
       cli.action.start('Creating experiment')
@@ -145,7 +142,7 @@ export default class Create extends Command {
         routeID: existingExperiment?.routeID ?? randomRouteID(),
         branch,
         url: experimentApp.web_url || '',
-        rules: [buildRule({...flags, weight, traffic})],
+        rules: [buildRule({...flags, weight, traffic, methods})],
       }
 
       if (existingExperiment) {

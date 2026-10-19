@@ -4,7 +4,7 @@ export interface ExperimentRule {
   path?: string  // Comma-separated paths: "/api/v3,/api/v4"
   query?: string  // Format: "key: value"
   header?: string  // Format: "key: value"
-  method?: string  // HTTP method: GET, POST, etc.
+  methods?: string  // HTTP method: GET, POST, etc.
 }
 
 export interface ExperimentEntry {
@@ -99,7 +99,7 @@ export function validateWeights(config: ExperimentsConfig): void {
       path: rule.path || null,
       query: rule.query || null,
       header: rule.header || null,
-      method: rule.method || null,
+      methods: rule.methods || null,
     })
 
     if (!groups.has(routingKey)) {
@@ -123,7 +123,7 @@ export function validateWeights(config: ExperimentsConfig): void {
       if (routing.path) routeParts.push(`path: ${routing.path}`)
       if (routing.query) routeParts.push(`query: ${routing.query}`)
       if (routing.header) routeParts.push(`header: ${routing.header}`)
-      if (routing.method) routeParts.push(`method: ${routing.method}`)
+      if (routing.methods) routeParts.push(`method: ${routing.methods}`)
 
       const routeDesc = routeParts.length > 0
         ? routeParts.join(', ')

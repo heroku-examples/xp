@@ -17,7 +17,7 @@ const xpJSON = `{
       "appID": "app-a", "routeID": "exp-a",
       "url": "https://exp-a.herokuapp.com",
       "rules": [
-        {"weight": 25, "traffic": "mirror", "method": "get, post", "path": "/api,/v2"},
+        {"weight": 25, "traffic": "mirror", "methods": "get, post", "path": "/api"},
         {"traffic": "live", "header": "x-xp: agent-a", "query": "xp: a"}
       ]
     },
@@ -65,9 +65,9 @@ func TestConvertsXPToRoutes(t *testing.T) {
 		t.Fatalf("run: %v\n%s", err, stderr)
 	}
 	routes := readRoutes(t, path)
-	// exp-a: 2 paths + 1 header/query rule; exp-off skipped; exp-b: zero skipped, 1 header rule.
-	if len(routes) != 4 {
-		t.Fatalf("want 4 routes, got %d: %v", len(routes), routes)
+	// exp-a: 1 path rule + 1 header/query rule; exp-off skipped; exp-b: zero skipped, 1 header rule.
+	if len(routes) != 3 {
+		t.Fatalf("want 3 routes, got %d: %v", len(routes), routes)
 	}
 
 	r := routes[0]
@@ -78,19 +78,16 @@ func TestConvertsXPToRoutes(t *testing.T) {
 	if m := r["methods"].([]any); len(m) != 2 || m[0] != "GET" || m[1] != "POST" {
 		t.Errorf("methods = %v", m)
 	}
-	if routes[1]["path"] != "/v2" {
-		t.Errorf("route 1 path = %v", routes[1]["path"])
-	}
-	if h := routes[2]["header"].(map[string]any); h["x-xp"] != "agent-a" {
+	if h := routes[1]["header"].(map[string]any); h["x-xp"] != "agent-a" {
 		t.Errorf("header = %v", h)
 	}
-	if q := routes[2]["query"].(map[string]any); q["xp"] != "a" {
+	if q := routes[1]["query"].(map[string]any); q["xp"] != "a" {
 		t.Errorf("query = %v", q)
 	}
-	if _, ok := routes[2]["path"]; ok {
-		t.Errorf("rule without a path should not set one: %v", routes[2])
+	if _, ok := routes[1]["path"]; ok {
+		t.Errorf("rule without a path should not set one: %v", routes[1])
 	}
-	if h := routes[3]["header"].(map[string]any); h["x-xp"] != "b" {
+	if h := routes[2]["header"].(map[string]any); h["x-xp"] != "b" {
 		t.Errorf("object header = %v", h)
 	}
 }
@@ -106,8 +103,8 @@ func TestPreservesExistingContentAndIsIdempotent(t *testing.T) {
 	if !strings.HasPrefix(string(first), project) {
 		t.Errorf("existing content not preserved:\n%s", first)
 	}
-	if got := len(readRoutes(t, path)); got != 5 {
-		t.Errorf("want 5 routes, got %d", got)
+	if got := len(readRoutes(t, path)); got != 4 {
+		t.Errorf("want 4 routes, got %d", got)
 	}
 
 	var out, errb bytes.Buffer
@@ -142,7 +139,6 @@ func TestInvalidXPDoesNotFail(t *testing.T) {
 	for name, xp := range map[string]string{
 		"bad json":        "not json{",
 		"missing url":     `{"experiments":[{"routeID":"x","rules":[{"traffic":"live","path":"/"}]}]}`,
-		"no matcher":      `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"traffic":"mirror"}]}]}`,
 		"no traffic":      `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"path":"/","mirror":true}]}]}`,
 		"unknown traffic": `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"path":"/","traffic":"both"}]}]}`,
 		"bad matcher":     `{"experiments":[{"routeID":"x","url":"https://x","rules":[{"traffic":"live","header":"nocolon"}]}]}`,
@@ -171,8 +167,8 @@ func TestInlineRoutesAreNormalized(t *testing.T) {
 	if !strings.Contains(stderr, "rewrote the routes") {
 		t.Errorf("stderr = %q", stderr)
 	}
-	if got := len(readRoutes(t, path)); got != 5 {
-		t.Errorf("want 5 routes, got %d", got)
+	if got := len(readRoutes(t, path)); got != 4 {
+		t.Errorf("want 4 routes, got %d", got)
 	}
 }
 
@@ -191,16 +187,16 @@ func TestProjectTomlEnvOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := len(readRoutes(t, custom)); got != 4 {
-		t.Errorf("want 4 routes, got %d", got)
+	if got := len(readRoutes(t, custom)); got != 3 {
+		t.Errorf("want 3 routes, got %d", got)
 	}
 }
 
 // `heroku xp --traffic mirror|live` is stored as rule.traffic and written as mirror = true (live omits it).
 func TestTrafficMirrorAndLive(t *testing.T) {
 	xp := `{"experiments":[
-	  {"routeID":"m","url":"https://m.example.com","rules":[{"traffic":"mirror","weight":10,"method":"GET"}]},
-	  {"routeID":"l","url":"https://l.example.com","rules":[{"traffic":"live","weight":10,"method":"GET"}]}
+	  {"routeID":"m","url":"https://m.example.com","rules":[{"traffic":"mirror","weight":10,"methods":"GET"}]},
+	  {"routeID":"l","url":"https://l.example.com","rules":[{"traffic":"live","weight":10,"methods":"GET"}]}
 	]}`
 	path, _, stderr, err := runHook(t, "", map[string]string{"HEROKU_XP": xp})
 	if err != nil {

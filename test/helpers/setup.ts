@@ -75,7 +75,7 @@ export function createMockExperiment(branch: string, routeID: string, overrides:
   const defaultRule: ExperimentRule = {
     weight: 10,
     traffic: 'live',
-    method: 'GET',
+    methods: 'GET',
   }
 
   return {

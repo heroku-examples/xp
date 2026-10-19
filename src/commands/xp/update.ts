@@ -31,23 +31,19 @@ export default class Update extends Command {
     }),
     path: flags.string({
       char: 'p',
-      description: 'Path-based routing (can specify multiple)',
-      multiple: true,
+      description: 'Path-based routing',
     }),
     query: flags.string({
       char: 'q',
       description: 'Query parameter routing (format: key=value)',
-      multiple: true,
     }),
     header: flags.string({
       char: 'H',
       description: 'Header-based routing (format: key=value)',
-      multiple: true,
     }),
     methods: flags.string({
       char: 'm',
-      description: 'HTTP methods to route (comma-separated or repeated, e.g. GET,POST)',
-      multiple: true,
+      description: 'HTTP methods to route, comma-separated (e.g. GET,POST)',
     }),
     traffic: flags.string({
       char: 't',

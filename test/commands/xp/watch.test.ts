@@ -733,7 +733,7 @@ http_requests_total{route="/api"} 1000
             branch: 'feature-a',
             url: 'https://test-exp-app.herokuapp.com',
             active: true,
-            rules: [{path: '/api', method: 'GET'}],
+            rules: [{path: '/api', methods: 'GET'}],
           },
         ],
       }
@@ -774,7 +774,7 @@ http_requests_total{route="/api"} 1000
             branch: 'feature-active',
             url: 'https://test-exp-app.herokuapp.com',
             active: true,
-            rules: [{path: '/api', method: 'GET'}],
+            rules: [{path: '/api', methods: 'GET'}],
           },
         ],
       }
@@ -815,7 +815,7 @@ http_requests_total{route="/api"} 1000
             branch: 'feature-inactive',
             url: 'https://test-exp-app.herokuapp.com',
             active: false,
-            rules: [{path: '/api', method: 'GET'}],
+            rules: [{path: '/api', methods: 'GET'}],
           },
         ],
       }
@@ -856,7 +856,7 @@ http_requests_total{route="/api"} 1000
             branch: 'feature-default',
             url: 'https://test-exp-app.herokuapp.com',
             // active field is undefined
-            rules: [{path: '/api', method: 'GET'}],
+            rules: [{path: '/api', methods: 'GET'}],
           },
         ],
       }

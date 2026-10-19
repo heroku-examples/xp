@@ -3,12 +3,12 @@ import {ExperimentEntry, ExperimentRule} from '../types/experiment'
 const HTTP_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
 /**
- * Turns --methods values (repeated, or comma-separated) into the rule's
- * comma-separated method list, e.g. `GET,POST`. Undefined if none were given.
+ * Turns the comma-separated --methods value into the rule's method list,
+ * e.g. `GET,POST`. Undefined if none were given.
  */
-export function parseMethods(values: string[] | undefined): string | undefined {
-  const methods = (values ?? [])
-    .flatMap(value => value.split(','))
+export function parseMethods(value: string | undefined): string | undefined {
+  const methods = (value ?? '')
+    .split(',')
     .map(method => method.trim().toUpperCase())
     .filter(Boolean)
 
@@ -22,7 +22,7 @@ export function parseMethods(values: string[] | undefined): string | undefined {
 }
 
 /** Checks the branch name and routing flags shared by xp:create and xp:update. */
-export function validateRoutingFlags(branch: string, flags: {[flag: string]: any; weight?: number; query?: string[]; header?: string[]; methods?: string[]}): void {
+export function validateRoutingFlags(branch: string, flags: {[flag: string]: any; weight?: number; query?: string; header?: string; methods?: string}): void {
   parseMethods(flags.methods)
 
   if (!/^[a-zA-Z0-9-_./]+$/.test(branch)) {
@@ -33,16 +33,12 @@ export function validateRoutingFlags(branch: string, flags: {[flag: string]: any
     throw new Error('Weight must be between 0 and 100')
   }
 
-  for (const query of flags.query ?? []) {
-    if (!query.includes('=')) {
-      throw new Error(`Invalid query parameter format: "${query}". Use format: key=value`)
-    }
+  if (flags.query !== undefined && !flags.query.includes('=')) {
+    throw new Error(`Invalid query parameter format: "${flags.query}". Use format: key=value`)
   }
 
-  for (const header of flags.header ?? []) {
-    if (!header.includes('=')) {
-      throw new Error(`Invalid header format: "${header}". Use format: key=value`)
-    }
+  if (flags.header !== undefined && !flags.header.includes('=')) {
+    throw new Error(`Invalid header format: "${flags.header}". Use format: key=value`)
   }
 }
 
@@ -50,12 +46,12 @@ export function validateRoutingFlags(branch: string, flags: {[flag: string]: any
 export function buildRule(flags: {
   weight?: number
   traffic?: string
-  path?: string[]
-  query?: string[]
-  header?: string[]
-  methods?: string[]
+  path?: string
+  query?: string
+  header?: string
+  methods?: string
 }): ExperimentRule {
-  // "key=value" becomes "key: value"; only the first of several is used.
+  // "key=value" becomes "key: value".
   const keyValue = (kind: string, raw: string) => {
     const [key, ...rest] = raw.split('=')
     const value = rest.join('=')
@@ -70,12 +66,13 @@ export function buildRule(flags: {
 
   const rule: ExperimentRule = {
     traffic: flags.traffic === 'live' ? 'live' : 'mirror',
-    method: parseMethods(flags.methods) ?? 'GET',
   }
+  const methods = parseMethods(flags.methods)
+  if (methods) rule.methods = methods
   if (flags.weight !== undefined) rule.weight = flags.weight
-  if (flags.path) rule.path = flags.path.join(',')
-  if (flags.query) rule.query = keyValue('query', flags.query[0])
-  if (flags.header) rule.header = keyValue('header', flags.header[0])
+  if (flags.path) rule.path = flags.path
+  if (flags.query) rule.query = keyValue('query', flags.query)
+  if (flags.header) rule.header = keyValue('header', flags.header)
 
   return rule
 }
@@ -87,11 +84,8 @@ export function formatRoute(exp: ExperimentEntry): string {
 
   const parts: string[] = []
   if (rule.weight !== undefined) parts.push(`${rule.weight}%`)
-  if (rule.method && rule.method !== 'GET') parts.push(rule.method)
-  if (rule.path) {
-    const paths = rule.path.split(',')
-    parts.push(paths.length > 1 ? `${paths[0]} (+${paths.length - 1})` : paths[0])
-  }
+  if (rule.methods) parts.push(rule.methods.split(',').map(m => m.trim().toUpperCase()).join(','))
+  if (rule.path) parts.push(rule.path)
 
   // Stored as "key: value"; shown as key=value, like the flags.
   const keyValue = (stored: string) => stored.replace(/:\s*/, '=')

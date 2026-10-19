@@ -148,8 +148,8 @@ export default class Watch extends Command {
       const routerLabel1 = 'app@file'  // Local app instance
       const routerLabel2 = `${appId}-control@file`  // Control router
 
-      const metrics1 = this.parsePrometheusMetrics(metricsText, routerLabel1)
-      const metrics2 = this.parsePrometheusMetrics(metricsText, routerLabel2)
+      const metrics1 = this.parsePrometheusMetrics(metricsText, name => name === routerLabel1)
+      const metrics2 = this.parsePrometheusMetrics(metricsText, name => name === routerLabel2)
 
       // Combine metrics from both router labels
       const metrics = this.combineMetrics(metrics1, metrics2)
@@ -157,8 +157,8 @@ export default class Watch extends Command {
       if (!metrics) {
         return {
           experiment: appName,
-          branch: appName,
-          active: '✓ live',
+          branch: '',
+          active: '- baseline',
           avgResponseTime: '',
           total2xx: '0',
           total3xx: '0',
@@ -176,8 +176,8 @@ export default class Watch extends Command {
 
       return {
         experiment: appName,
-        branch: appName,
-        active: '✓ live',
+        branch: '',
+        active: '- baseline',
         avgResponseTime,
         total2xx: pct(metrics.total2xx),
         total3xx: pct(metrics.total3xx),
@@ -187,8 +187,8 @@ export default class Watch extends Command {
     } catch (error: any) {
       return {
         experiment: appName,
-        branch: appName,
-        active: '✓ live',
+        branch: '',
+        active: '- baseline',
         avgResponseTime: '',
         total2xx: '0',
         total3xx: '0',
@@ -214,8 +214,9 @@ export default class Watch extends Command {
       const metricsUrl = `${parentWebUrl}.dyno-proxy/metrics/`
       const metricsText = await this.fetchUrl(metricsUrl, auth)
 
-      const routerLabel = `${routeID}-experiment@file`
-      const metrics = this.parsePrometheusMetrics(metricsText, routerLabel)
+      // dyno-proxy names each route's experiment service percentage-<group>-<idx>-experiment-<routeID>@file;
+      // an experiment with several routes has several such services.
+      const metrics = this.parsePrometheusMetrics(metricsText, name => name.endsWith(`-experiment-${routeID}@file`))
 
       if (!metrics) {
         return {
@@ -292,7 +293,7 @@ export default class Watch extends Command {
     }
   }
 
-  private parsePrometheusMetrics(text: string, routerLabel: string): MetricCounters | null {
+  private parsePrometheusMetrics(text: string, matchesName: (name: string) => boolean): MetricCounters | null {
     const lines = text.split('\n')
 
     const metrics: Partial<MetricCounters> = {
@@ -329,9 +330,7 @@ export default class Watch extends Command {
       // Parse labels
       const labels = this.parseLabels(labelsStr)
 
-      // For service metrics, check the 'service' label; for router metrics, check 'router' label
-      // Service label matches router label directly (both use -experiment@file suffix)
-      const isMatch = labels.router === routerLabel || labels.service === routerLabel
+      const isMatch = [labels.router, labels.service].some(name => name !== undefined && matchesName(name))
 
       if (!isMatch) {
         continue

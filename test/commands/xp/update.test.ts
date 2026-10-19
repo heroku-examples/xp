@@ -42,7 +42,7 @@ describe('xp:update', () => {
   withStubs()
     .do(() => givenExperiments([
       createMockExperiment('feature-xyz', 'exp-app', {
-        rules: [{weight: 10, traffic: 'live', method: 'GET', path: '/api'}],
+        rules: [{weight: 10, traffic: 'live', methods: 'GET', path: '/api'}],
       }),
     ]))
     .stdout()
@@ -51,24 +51,24 @@ describe('xp:update', () => {
       expect(ctx.stdout).to.contain('Updated experiment')
 
       const experiment = patchedConfig().experiments[0]
-      expect(experiment.rules[0]).to.deep.equal({weight: 25, traffic: 'mirror', method: 'GET'})
+      expect(experiment.rules[0]).to.deep.equal({weight: 25, traffic: 'mirror'})
     })
 
   withStubs()
     .do(() => givenExperiments([
       createMockExperiment('feature-xyz', 'exp-app', {
-        rules: [{weight: 10, traffic: 'mirror', method: 'GET'}],
+        rules: [{weight: 10, traffic: 'mirror', methods: 'GET'}],
       }),
     ]))
     .stdout()
     .command([
       'xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz',
-      '--traffic', 'live', '--path', '/a', '--path', '/b', '--query', 'xp=one', '--header', 'x-xp=two',
+      '--traffic', 'live', '--path', '/a', '--query', 'xp=one', '--header', 'x-xp=two',
     ])
-    .it('sets traffic, paths, query and header', () => {
+    .it('sets traffic, path, query and header', () => {
       const rule = patchedConfig().experiments[0].rules[0]
       expect(rule.traffic).to.equal('live')
-      expect(rule.path).to.equal('/a,/b')
+      expect(rule.path).to.equal('/a')
       expect(rule.query).to.equal('xp: one')
       expect(rule.header).to.equal('x-xp: two')
       expect(rule).to.not.have.property('weight')
@@ -90,33 +90,33 @@ describe('xp:update', () => {
   withStubs()
     .do(() => givenExperiments([
       createMockExperiment('feature-xyz', 'exp-app', {
-        rules: [{weight: 10, traffic: 'live', method: 'POST', path: '/api'}],
+        rules: [{weight: 10, traffic: 'live', methods: 'POST', path: '/api'}],
       }),
     ]))
     .stdout()
     .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '-q', 'x=1'])
     .it('does not carry over weight, path or traffic when only --query is given', () => {
-      expect(patchedConfig().experiments[0].rules[0]).to.deep.equal({traffic: 'mirror', method: 'GET', query: 'x: 1'})
+      expect(patchedConfig().experiments[0].rules[0]).to.deep.equal({traffic: 'mirror', query: 'x: 1'})
     })
 
   withStubs()
     .do(() => givenExperiments([createMockExperiment('feature-xyz', 'exp-app')]))
     .stdout()
-    .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '--methods', 'get,post', '--methods', 'PUT'])
-    .it('sets methods from repeated and comma-separated values', () => {
-      expect(patchedConfig().experiments[0].rules[0].method).to.equal('GET,POST,PUT')
+    .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '--methods', 'get, post,PUT'])
+    .it('sets methods from a comma-separated value', () => {
+      expect(patchedConfig().experiments[0].rules[0].methods).to.equal('GET,POST,PUT')
     })
 
   withStubs()
     .do(() => givenExperiments([
       createMockExperiment('feature-xyz', 'exp-app', {
-        rules: [{weight: 10, traffic: 'live', method: 'POST'}],
+        rules: [{weight: 10, traffic: 'live', methods: 'POST'}],
       }),
     ]))
     .stdout()
     .command(['xp:update', '--app', 'test-parent-app', '--branch', 'feature-xyz', '--weight', '20'])
-    .it('resets the method to GET when --methods is not given', () => {
-      expect(patchedConfig().experiments[0].rules[0].method).to.equal('GET')
+    .it('clears the method when --methods is not given', () => {
+      expect(patchedConfig().experiments[0].rules[0].methods).to.equal(undefined)
     })
 
   withStubs()

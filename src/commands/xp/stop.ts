@@ -1,7 +1,6 @@
 import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
 import {
-  ExperimentsConfig,
   findExperimentByBranch,
 } from '../../types/experiment'
 import {readExperimentsConfig, writeExperimentsConfig} from '../../utils/experiments-config'
@@ -30,19 +29,8 @@ export default class Stop extends Command {
     const branch = flags.branch
 
     try {
-      // Step 1: Fetch HEROKU_XP config
-      cli.action.start('Fetching experiment configuration')
-      let experimentsConfig: ExperimentsConfig
-      try {
-        experimentsConfig = await readExperimentsConfig(this.heroku, parentApp)
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
-
-      // Step 2: Find the experiment to stop
-      cli.action.start(`Finding experiment for branch "${branch}"`)
+      cli.action.start('Stopping experiment')
+      const experimentsConfig = await readExperimentsConfig(this.heroku, parentApp)
       const experiment = findExperimentByBranch(experimentsConfig, branch)
 
       if (!experiment) {
@@ -51,10 +39,8 @@ export default class Stop extends Command {
         return
       }
 
-      cli.action.stop('✓')
-
-      // Step 3: Check if already inactive
       if (experiment.active === false) {
+        cli.action.stop('')
         this.log('')
         this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
         this.log('ℹ️  Experiment is already inactive')
@@ -66,35 +52,11 @@ export default class Stop extends Command {
         return
       }
 
-      // Step 4: Set active: false
-      cli.action.start('Stopping experiment')
-      try {
-        // Find the experiment index
-        const experimentIndex = experimentsConfig.experiments.findIndex(
-          exp => exp.branch === branch
-        )
+      experiment.active = false
+      await writeExperimentsConfig(this.heroku, parentApp, experimentsConfig)
+      cli.action.stop('')
 
-        if (experimentIndex === -1) {
-          cli.action.stop('✗')
-          this.error('Failed to find experiment in configuration')
-          return
-        }
-
-        // Update the experiment to set active: false
-        experimentsConfig.experiments[experimentIndex] = {
-          ...experimentsConfig.experiments[experimentIndex],
-          active: false,
-        }
-
-        // Update the config
-        await writeExperimentsConfig(this.heroku, parentApp, experimentsConfig)
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
-
-      // Step 5: Display results
+      // Display results
       this.log('')
       this.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       this.log('✓ Experiment stopped successfully!')
@@ -113,6 +75,7 @@ export default class Stop extends Command {
       this.log('')
 
     } catch (error: any) {
+      cli.action.stop('✗')
       this.error(`Failed to stop experiment: ${error.message}`)
     }
   }

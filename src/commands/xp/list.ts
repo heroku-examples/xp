@@ -1,8 +1,5 @@
 import {Command, flags} from '@heroku-cli/command'
 import {cli} from 'cli-ux'
-import {
-  ExperimentsConfig,
-} from '../../types/experiment'
 import {readExperimentsConfig} from '../../utils/experiments-config'
 import {formatRoute} from '../../utils/routing'
 
@@ -25,15 +22,9 @@ export default class List extends Command {
 
     try {
       // Fetch HEROKU_XP config var
-      cli.action.start('Fetching experiment configuration')
-      let experimentsConfig: ExperimentsConfig
-      try {
-        experimentsConfig = await readExperimentsConfig(this.heroku, appName)
-        cli.action.stop('✓')
-      } catch (error: any) {
-        cli.action.stop('✗')
-        throw error
-      }
+      cli.action.start('Fetching experiments')
+      const experimentsConfig = await readExperimentsConfig(this.heroku, appName)
+      cli.action.stop('')
 
       // Check if there are any experiments
       if (experimentsConfig.experiments.length === 0) {

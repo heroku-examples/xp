@@ -12,8 +12,8 @@
 //  1. The routes it writes live in a managed block between marker comments,
 //     which is stripped and rewritten on every run. Everything outside the
 //     markers is left as is.
-//  2. Each active experiment rule becomes one route per path (a comma-separated
-//     path yields several), forwarding to the experiment's url. Inactive
+//  2. Each active experiment rule becomes one route
+//     forwarding to the experiment's url. Inactive
 //     experiments and rules with weight 0 are skipped. A rule's traffic is
 //     "mirror" (staging still responds; the route is mirrored) or "live" (the
 //     experiment responds) and is required.
@@ -239,7 +239,7 @@ type xpRule struct {
 	Traffic string  `json:"traffic"`
 	Weight  *int    `json:"weight,omitempty"`
 	Path    string  `json:"path,omitempty"`
-	Method  string  `json:"method,omitempty"` // one or more, comma-separated
+	Methods string  `json:"methods,omitempty"` // one or more, comma-separated
 	Header  kvMatch `json:"header,omitempty"`
 	Query   kvMatch `json:"query,omitempty"`
 	Body    kvMatch `json:"body,omitempty"`
@@ -315,37 +315,26 @@ func routesFromXP(raw string) ([]route, error) {
 				return nil, fmt.Errorf("experiment %q rule %d has traffic %q (want \"mirror\" or \"live\")", exp.RouteID, i, rule.Traffic)
 			}
 			var methods []string
-			for _, m := range splitList(rule.Method) {
+			for _, m := range splitList(rule.Methods) {
 				methods = append(methods, strings.ToUpper(m))
 			}
 			pct := 0
 			if rule.Weight != nil && *rule.Weight > 0 {
 				pct = *rule.Weight
 			}
-			if rule.Path == "" && methods == nil && len(rule.Header) == 0 && len(rule.Query) == 0 && len(rule.Body) == 0 {
-				return nil, fmt.Errorf("experiment %q rule %d has no matcher (path, method, header, query or body)", exp.RouteID, i)
-			}
 
-			// One route per comma-separated path; a rule without a path
-			// matches any path.
-			paths := splitList(rule.Path)
-			if len(paths) == 0 {
-				paths = []string{""}
-			}
-			for _, p := range paths {
-				routes = append(routes, route{
-					Path:       p,
-					To:         exp.URL,
-					Methods:    methods,
-					Percentage: pct,
-					ID:         exp.RouteID,
-					AppID:      exp.AppID,
-					Mirror:     rule.Traffic == "mirror",
-					Header:     rule.Header,
-					Query:      rule.Query,
-					Body:       rule.Body,
-				})
-			}
+			routes = append(routes, route{
+				Path:       rule.Path,
+				To:         exp.URL,
+				Methods:    methods,
+				Percentage: pct,
+				ID:         exp.RouteID,
+				AppID:      exp.AppID,
+				Mirror:     rule.Traffic == "mirror",
+				Header:     rule.Header,
+				Query:      rule.Query,
+				Body:       rule.Body,
+			})
 		}
 	}
 	return routes, nil
