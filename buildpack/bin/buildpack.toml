@@ -2,7 +2,7 @@ api = "0.10"
 
 [buildpack]
 id = "heroku/xp"
-version = "2.0.0.v1alpha1"
+version = "0.0.1"
 name = "Heroku XP"
 
 # Composite buildpack. It requires dyno-proxy FIRST, then runs the XP startup hook
@@ -14,8 +14,8 @@ name = "Heroku XP"
 
   [[order.group]]
   id = "heroku/dyno-proxy"
-  version = "0.0.1"
+  version = "0.0.2"
 
   [[order.group]]
   id = "heroku/xp-src"
-  version = "2.0.0.v1alpha1"
+  version = "0.0.1"
