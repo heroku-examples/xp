@@ -91,7 +91,14 @@ export default class Create extends Command {
 
         const confirmed = await cli.confirm('Create experiment with these defaults? (y/n)')
         if (!confirmed) {
-          this.log('Cancelled.')
+          this.log('Cancelled. Choose how traffic is routed with flags, for example:')
+          this.log('')
+          this.log(`  heroku xp:create -a ${parentApp} -b ${branch} --weight 25 --traffic live`)
+          this.log(`  heroku xp:create -a ${parentApp} -b ${branch} --path /api/v2 --methods GET,POST`)
+          this.log(`  heroku xp:create -a ${parentApp} -b ${branch} --header x-xp=${branch} --traffic live`)
+          this.log(`  heroku xp:create -a ${parentApp} -b ${branch} --query xp=${branch} --traffic live`)
+          this.log('')
+          this.log(`See all options: heroku xp:create --help`)
           return
         }
 
