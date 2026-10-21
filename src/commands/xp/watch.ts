@@ -214,9 +214,9 @@ export default class Watch extends Command {
       const metricsUrl = `${parentWebUrl}.dyno-proxy/metrics/`
       const metricsText = await this.fetchUrl(metricsUrl, auth)
 
-      // dyno-proxy names each route's experiment service percentage-<group>-<idx>-experiment-<routeID>@file;
-      // an experiment with several routes has several such services.
-      const metrics = this.parsePrometheusMetrics(metricsText, name => name.endsWith(`-experiment-${routeID}@file`))
+      // dyno-proxy embeds the routeID in each route's experiment service name, whose prefix varies
+      // with the routing type; an experiment with several routes has several such services.
+      const metrics = this.parsePrometheusMetrics(metricsText, name => name.includes(routeID))
 
       if (!metrics) {
         return {

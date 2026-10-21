@@ -2,6 +2,7 @@ import {expect, test} from '@oclif/test'
 import * as sinon from 'sinon'
 import * as https from 'https'
 import {EventEmitter} from 'events'
+import Watch from '../../../src/commands/xp/watch'
 
 describe('xp:watch', () => {
   let sandbox: sinon.SinonSandbox
@@ -885,6 +886,33 @@ http_requests_total{route="/api"} 1000
         .it('defaults to ✓ when active is undefined', ctx => {
           expect(ctx.stdout).to.contain('✓')
         })
+    })
+  })
+
+  describe('experiment metrics matching', () => {
+    const metrics = [
+      'traefik_service_requests_total{service="percentage-0-0-experiment-ROUTE1@file",code="200"} 3',
+      'traefik_service_requests_total{service="percentage-0-0-experiment-ROUTE1@file",code="500"} 1',
+      'traefik_service_requests_total{service="header-0-experiment-ROUTE2@file",code="200"} 4',
+      'traefik_service_requests_total{service="percentage-0-0-experiment-OTHER@file",code="404"} 9',
+    ].join('\n')
+
+    async function fetchFor(routeID: string) {
+      const watch = new Watch([], {} as any) as any
+      sandbox.stub(watch, 'fetchUrl').resolves(metrics)
+      return watch.fetchExperimentMetrics({routeID, branch: 'b', rules: [{traffic: 'live'}]}, 'https://app.herokuapp.com/')
+    }
+
+    it('matches a weighted route by routeID', async () => {
+      const result = await fetchFor('ROUTE1')
+      expect(result.total2xx).to.equal('75%')
+      expect(result.total5xx).to.equal('25%')
+      expect(result.total4xx).to.equal('0%')
+    })
+
+    it('matches a route whose service name has a different prefix', async () => {
+      const result = await fetchFor('ROUTE2')
+      expect(result.total2xx).to.equal('100%')
     })
   })
 })
