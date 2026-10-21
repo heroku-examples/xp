@@ -1,4 +1,4 @@
-# Heroku Experiments (XP)
+# Review App Experiments (XP)
 
 XP is an unofficial, experimental CLI plugin and buildpack that routes your staging app's traffic to review apps, so you can test many branches at once on a single staging URL.
 
