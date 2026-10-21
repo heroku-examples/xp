@@ -893,7 +893,7 @@ http_requests_total{route="/api"} 1000
     const metrics = [
       'traefik_service_requests_total{service="percentage-0-0-experiment-ROUTE1@file",code="200"} 3',
       'traefik_service_requests_total{service="percentage-0-0-experiment-ROUTE1@file",code="500"} 1',
-      'traefik_service_requests_total{service="header-0-experiment-ROUTE2@file",code="200"} 4',
+      'traefik_service_requests_total{service="header-0-ROUTE2-experiment@file",code="200"} 4',
       'traefik_service_requests_total{service="percentage-0-0-experiment-OTHER@file",code="404"} 9',
     ].join('\n')
 
