@@ -279,7 +279,7 @@ type route struct {
 	Path       string            `toml:"path,omitempty"`
 	To         string            `toml:"to"`
 	Methods    []string          `toml:"methods,omitempty"`
-	Percentage int               `toml:"percentage,omitempty"`
+	Percentage *int              `toml:"percentage,omitempty"`
 	ID         string            `toml:"routeID,omitempty"`
 	AppID      string            `toml:"appID,omitempty"`
 	Mirror     bool              `toml:"mirror,omitempty"`
@@ -318,16 +318,11 @@ func routesFromXP(raw string) ([]route, error) {
 			for _, m := range splitList(rule.Methods) {
 				methods = append(methods, strings.ToUpper(m))
 			}
-			pct := 0
-			if rule.Weight != nil && *rule.Weight > 0 {
-				pct = *rule.Weight
-			}
-
 			routes = append(routes, route{
 				Path:       rule.Path,
 				To:         exp.URL,
 				Methods:    methods,
-				Percentage: pct,
+				Percentage: rule.Weight,
 				ID:         exp.RouteID,
 				AppID:      exp.AppID,
 				Mirror:     rule.Traffic == "mirror",

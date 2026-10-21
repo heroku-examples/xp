@@ -90,6 +90,11 @@ func TestConvertsXPToRoutes(t *testing.T) {
 	if h := routes[2]["header"].(map[string]any); h["x-xp"] != "b" {
 		t.Errorf("object header = %v", h)
 	}
+	for i := 1; i <= 2; i++ {
+		if _, ok := routes[i]["percentage"]; ok {
+			t.Errorf("rule without a weight should not set percentage: %v", routes[i])
+		}
+	}
 }
 
 func TestPreservesExistingContentAndIsIdempotent(t *testing.T) {
